@@ -1515,6 +1515,10 @@ function startApp(){
   const pass=localStorage.getItem('mtb_pass');
   if(nombre&&pass){
     iniciarSesion(nombre);
+  } else {
+    document.getElementById('login-screen').style.display='flex';
+    document.getElementById('registro-screen').style.display='none';
+    document.getElementById('app').style.display='none';
   }
 }
 
