@@ -13,7 +13,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http%3A//www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230a0a0a'/%3E%3Ccircle cx='96' cy='96' r='72' fill='%23e8409a' opacity='.15'/%3E%3Cpath d='M60 70 Q60 55 75 55 L117 55 Q132 55 132 70 L138 130 Q138 140 128 140 L64 140 Q54 140 54 130 Z' fill='%23e8409a'/%3E%3Cpath d='M80 55 Q80 40 96 40 Q112 40 112 55' fill='none' stroke='%23ff6dbf' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='84' cy='98' r='5' fill='white'/%3E%3Ccircle cx='108' cy='98' r='5' fill='white'/%3E%3Cpath d='M84 115 Q96 125 108 115' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
 <link href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -360,7 +360,7 @@ function goTo(sec,btn){
   document.getElementById('sec-'+sec).classList.add('active');
   (btn||document.getElementById('nav-'+sec)).classList.add('active');
   if(sec==='historial') renderHistorial();
-  if(sec==='presupuesto') renderPresupuestosGuardados();
+  if(sec==='presupuesto'){renderPresupuestosGuardados();populatePresuCliSelect();}
   if(sec==='mas') renderCajaPanel(),renderAgenda(),renderReportes();
 }
 
@@ -602,6 +602,9 @@ function addToCart(id,tipo){
   const item=src.find(a=>String(a._id)===sid);
   if(!item) return;
   const existing=state.cart.find(c=>c.id===sid&&c.tipo===tipo);
+  const stockDisp=tipo==='articulos'?(item.stock||0):999;
+  const enCarrito=existing?existing.qty:0;
+  if(tipo==='articulos'&&enCarrito>=stockDisp){toast('⚠️ No hay más stock disponible');return;}
   if(existing) existing.qty++;
   else state.cart.push({id:sid,tipo,nombre:item.nombre,precio:item.precio,qty:1});
   renderVentaList();
@@ -613,6 +616,12 @@ function addToCartQty(id,tipo){
   const src=tipo==='articulos'?state.articulos:state.combos;
   const item=src.find(a=>String(a._id)===sid);
   if(!item) return;
+  const stockDisp=tipo==='articulos'?(item.stock||0):999;
+  if(tipo==='articulos'&&qty>stockDisp){
+    toast('⚠️ Solo hay '+stockDisp+' en stock');
+    if(qtyEl) qtyEl.value=stockDisp;
+    return;
+  }
   const existing=state.cart.find(c=>c.id===sid&&c.tipo===tipo);
   if(existing) existing.qty=qty;
   else state.cart.push({id:sid,tipo,nombre:item.nombre,precio:item.precio,qty});
@@ -628,6 +637,11 @@ function cartQty(id,tipo,delta){
   const sid=String(id);
   const idx=state.cart.findIndex(c=>c.id===sid&&c.tipo===tipo);
   if(idx<0) return;
+  if(delta>0&&tipo==='articulos'){
+    const art=state.articulos.find(a=>String(a._id)===sid);
+    const stockDisp=art?art.stock||0:0;
+    if(state.cart[idx].qty>=stockDisp){toast('⚠️ No hay más stock disponible');return;}
+  }
   state.cart[idx].qty+=delta;
   if(state.cart[idx].qty<=0) state.cart.splice(idx,1);
   renderVentaList();
@@ -741,6 +755,25 @@ async function confirmarVenta(){
   const saved=await dbInsert('ventas',venta);
   if(saved) state.ventas.push(saved);
   state.lastVenta={...venta,_id:saved?._id};
+  // Si viene de un presupuesto, marcarlo como convertido
+  if(state._presuOrigen){
+    const pIdx=state.presupuestos.findIndex(p=>String(p._id)===String(state._presuOrigen));
+    if(pIdx>=0){
+      state.presupuestos[pIdx].estado='convertido';
+      state.presupuestos[pIdx].ventaId=saved?._id;
+      await dbUpdate('presupuestos',state.presupuestos[pIdx]._id,state.presupuestos[pIdx]);
+    }
+    state._presuOrigen=null;
+  }
+  // Agregar venta a cuenta corriente del cliente (todos los medios de pago, no solo cta cte)
+  if(cliId){
+    const cli=state.clientes.find(c=>c._id===cliId);
+    if(cli&&!(formaPago==='cuenta_corriente'||formaPago.includes('cuenta_corriente'))){
+      if(!cli.movimientos) cli.movimientos=[];
+      cli.movimientos.push({tipo:'venta',monto:total,fecha:new Date().toISOString(),desc:'Venta #'+venta.nro,formaPago});
+      await dbUpdate('clientes',cli._id,cli);
+    }
+  }
   state.cart=[];
   closeModal('modal-carrito');
   renderVentaList();renderArticulos();
@@ -926,12 +959,27 @@ function openFicha(id){
       <button class="btn btn-danger btn-sm" style="flex:1" onclick="closeModal('modal-ficha');deleteCliente('${c._id}')"><i class="ti ti-trash"></i> Borrar</button>
     </div>
     ${saldo>0?`<button class="btn btn-primary btn-full btn-sm" style="margin-bottom:12px" onclick="openPagoCli('${c._id}')"><i class="ti ti-cash"></i> Registrar pago</button>`:''}
-    <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:8px">HISTORIAL DE COMPRAS</div>
-    ${ventas.length?ventas.slice().reverse().map(v=>`
-      <div style="display:flex;justify-content:space-between;font-size:13px;padding:8px 0;border-bottom:1px solid var(--border)">
-        <div><div style="font-weight:600">Venta #${v.nro||''}</div><div style="color:var(--text2);font-size:11px">${new Date(v.fecha).toLocaleDateString('es-AR')} · ${v.formaPago}</div></div>
-        <div style="font-weight:800;color:var(--rose2)">${fmt(v.total)}</div>
-      </div>`).join(''):`<div style="color:var(--text3);font-size:13px;padding:10px 0">Sin compras aún</div>`}
+    <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:8px">CUENTA CORRIENTE</div>
+    ${(()=>{
+      const movs=[];
+      ventas.forEach(v=>movs.push({tipo:'venta',fecha:v.fecha,desc:'Venta #'+(v.nro||''),monto:v.total,sub:v.formaPago,id:v._id}));
+      const presus=state.presupuestos.filter(p=>p.clienteId===id);
+      presus.forEach(p=>movs.push({tipo:p.estado==='convertido'?'presupuesto-conv':'presupuesto',fecha:p.fecha,desc:'Presupuesto',monto:p.total,sub:p.estado==='convertido'?'Convertido en venta':'Pendiente',id:p._id}));
+      movs.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+      if(!movs.length) return '<div style="color:var(--text3);font-size:13px;padding:10px 0">Sin movimientos aún</div>';
+      return movs.map(m=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:9px 0;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-size:15px">${m.tipo==='venta'?'🛒':m.tipo==='presupuesto-conv'?'📋✓':'📋'}</span>
+              <span style="font-weight:600">${m.desc}</span>
+              ${m.tipo==='presupuesto-conv'?'<span style="background:rgba(5,150,105,.12);color:var(--green);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">CONV</span>':m.tipo==='presupuesto'?'<span style="background:var(--rose-soft);color:var(--rose);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">PEND</span>':''}
+            </div>
+            <div style="color:var(--text2);font-size:11px;margin-top:1px">${new Date(m.fecha).toLocaleDateString('es-AR')} · ${m.sub}</div>
+          </div>
+          <div style="font-weight:800;color:var(--rose)">${fmt(m.monto)}</div>
+        </div>`).join('');
+    })()}
   `;
   document.getElementById('ficha-content').innerHTML=html;
   openModal('modal-ficha');
@@ -1428,6 +1476,26 @@ function recalcResta(){
 
 // PRESUPUESTO
 let presuItems=[];
+function presuCliChange(val){
+  const inp=document.getElementById('presu-cliente');
+  if(val==='__manual__'){
+    inp.style.display='block';inp.value='';inp.focus();
+  } else {
+    inp.style.display='none';
+    // Store name in hidden input for compatibility
+    const cli=state.clientes.find(c=>c._id===val);
+    inp.value=cli?cli.nombre:'';
+  }
+}
+function populatePresuCliSelect(){
+  const sel=document.getElementById('presu-cliente-sel');
+  if(!sel) return;
+  const cur=sel.value;
+  sel.innerHTML='<option value="">Sin cliente</option>'+
+    state.clientes.map(c=>`<option value="${c._id}">${c.nombre}</option>`).join('')+
+    '<option value="__manual__">✏️ Escribir nombre manual</option>';
+  if(cur) sel.value=cur;
+}
 function addPresuItem(){
   presuItems.push({nombre:'',precio:0,qty:1});
   renderPresuItems();
@@ -1485,38 +1553,81 @@ async function guardarPresupuesto(){
   const desc=parseFloat(document.getElementById('presu-desc').value)||0;
   const items=presuItems.filter(it=>it.nombre);
   if(!items.length){toast('Agregá al menos un artículo');return;}
-  const cli=document.getElementById('presu-cliente').value.trim();
+  const sel=document.getElementById('presu-cliente-sel');
+  const selVal=sel?sel.value:'';
+  let clienteId=null;
+  let cliNombre='';
+  if(selVal&&selVal!=='__manual__'){
+    const cliObj=state.clientes.find(c=>c._id===selVal);
+    clienteId=selVal;
+    cliNombre=cliObj?cliObj.nombre:'';
+  } else {
+    cliNombre=document.getElementById('presu-cliente').value.trim();
+    const cliEncontrado=state.clientes.find(c=>c.nombre.toLowerCase()===cliNombre.toLowerCase());
+    clienteId=cliEncontrado?cliEncontrado._id:null;
+  }
   const subtotal=items.reduce((s,it)=>s+it.precio*it.qty,0);
   const conDesc=subtotal*(1-desc/100);
   const obj={
-    cliente:cli||'Sin nombre',
+    cliente:cliNombre||'Sin nombre',
+    clienteId,
     fecha:new Date().toISOString(),
-    items,desc,subtotal,total:conDesc
+    items,desc,subtotal,total:conDesc,
+    estado:'pendiente'
   };
   const saved=await dbInsert('presupuestos',obj);
-  if(saved){state.presupuestos.unshift(saved);renderPresupuestosGuardados();toast('Presupuesto guardado ✓');}
+  if(saved){
+    state.presupuestos.unshift(saved);
+    // Agregar a cuenta corriente del cliente como movimiento de presupuesto
+    if(clienteId){
+      const cli=state.clientes.find(c=>c._id===clienteId);
+      if(cli){
+        if(!cli.movimientos) cli.movimientos=[];
+        cli.movimientos.push({tipo:'presupuesto',monto:conDesc,fecha:new Date().toISOString(),desc:'Presupuesto #'+saved._id.slice(-4).toUpperCase(),presuId:saved._id});
+        await dbUpdate('clientes',clienteId,cli);
+      }
+    }
+    renderPresupuestosGuardados();
+    // Limpiar formulario
+    presuItems=[];
+    document.getElementById('presu-cliente').value='';
+    const selEl=document.getElementById('presu-cliente-sel');
+    if(selEl) selEl.value='';
+    const inpEl=document.getElementById('presu-cliente');
+    if(inpEl) inpEl.style.display='none';
+    setPresuDesc(0);
+    renderPresuItems();
+    toast('Presupuesto guardado ✓');
+  }
 }
 function renderPresupuestosGuardados(){
   const el=document.getElementById('presu-historial');
   if(!el) return;
   if(!state.presupuestos.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">No hay presupuestos guardados</div>';return;}
-  el.innerHTML=[...state.presupuestos].reverse().map(p=>{
+  el.innerHTML=[...state.presupuestos].map(p=>{
     const fecha=new Date(p.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'});
     const hora=new Date(p.fecha).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    return`<div style="padding:12px;border-bottom:1px solid var(--border)">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <div style="font-size:14px;font-weight:600">${p.cliente}</div>
-          <div style="font-size:11px;color:var(--text2)">${fecha} ${hora} · ${p.items.length} ítem(s)</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:2px">${p.items.map(i=>i.qty+'x '+i.nombre).join(', ')}</div>
+    const convertido=p.estado==='convertido';
+    const cli=p.clienteId?state.clientes.find(c=>c._id===p.clienteId):null;
+    return`<div style="padding:14px;background:var(--bg2);border:1px solid ${convertido?'var(--border)':'var(--border)'};border-radius:14px;margin-bottom:8px;${convertido?'opacity:.65':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-size:14px;font-weight:700">${p.cliente}</div>
+            ${convertido?'<span style="background:rgba(5,150,105,.12);color:var(--green);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">CONVERTIDO</span>':'<span style="background:var(--rose-soft);color:var(--rose);font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">PENDIENTE</span>'}
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-top:3px">${fecha} ${hora} · ${p.items.length} ítem(s)</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${p.items.map(i=>i.qty+'x '+i.nombre).join(', ')}</div>
         </div>
         <div style="text-align:right;flex-shrink:0;margin-left:10px">
-          <div style="font-size:16px;font-weight:800;color:var(--rose2)">${fmt(p.total)}</div>
+          <div style="font-size:16px;font-weight:800;color:var(--rose)">${fmt(p.total)}</div>
           ${p.desc>0?`<div style="font-size:10px;color:var(--green)">-${p.desc}% transf.</div>`:''}
         </div>
       </div>
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="verPresupuestoGuardado('${p._id}')"><i class="ti ti-eye"></i> Ver</button>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="presuGuardadoWhatsapp('${p._id}')"><i class="ti ti-brand-whatsapp"></i> WP</button>
+        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="presuGuardadoPDF('${p._id}')"><i class="ti ti-file-invoice"></i> PDF</button>
+        ${!convertido?`<button class="btn btn-primary btn-sm" style="flex:1" onclick="convertirPresupuesto('${p._id}')"><i class="ti ti-check"></i> Convertir</button>`:''}
         <button class="btn btn-danger btn-sm" onclick="borrarPresupuesto('${p._id}')"><i class="ti ti-trash"></i></button>
       </div>
     </div>`;
@@ -1525,13 +1636,90 @@ function renderPresupuestosGuardados(){
 function verPresupuestoGuardado(id){
   const p=state.presupuestos.find(x=>String(x._id)===String(id));
   if(!p) return;
-  // Reconstruct presuItems and reload form
   presuItems=p.items.map(i=>({...i}));
   document.getElementById('presu-cliente').value=p.cliente==='Sin nombre'?'':p.cliente;
   setPresuDesc(p.desc||0);
   renderPresuItems();
   toast('Presupuesto cargado');
   window.scrollTo(0,0);
+}
+function presuGuardadoWhatsapp(id){
+  const p=state.presupuestos.find(x=>String(x._id)===String(id));
+  if(!p) return;
+  const cli=p.clienteId?state.clientes.find(c=>c._id===p.clienteId):null;
+  const fecha=new Date(p.fecha).toLocaleDateString('es-AR');
+  let txt='*PRESUPUESTO - Mi Tienda Belleza*\n';
+  txt+=fecha+'\n\n';
+  if(p.cliente&&p.cliente!=='Sin nombre') txt+='Para: '+p.cliente+'\n\n';
+  txt+='*Detalle:*\n';
+  p.items.forEach(it=>{txt+=it.qty+'x '+it.nombre+' - $'+(it.precio*it.qty).toLocaleString('es-AR')+'\n';});
+  txt+='\n💳 *Tarjeta: $'+p.subtotal.toLocaleString('es-AR')+'*';
+  txt+='\n💵 *Efectivo/Transferencia'+(p.desc>0?' (-'+p.desc+'%)':'')+': $'+p.total.toLocaleString('es-AR')+'*';
+  txt+='\n\n_Gracias por elegirnos ♡_';
+  const phone=cli?.telefono||'';
+  window.open('https://wa.me/'+phone.replace(/\D/g,'')+'?text='+encodeURIComponent(txt),'_blank');
+}
+function presuGuardadoPDF(id){
+  const p=state.presupuestos.find(x=>String(x._id)===String(id));
+  if(!p) return;
+  const fecha=new Date(p.fecha).toLocaleDateString('es-AR');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{font-family:Arial,sans-serif;max-width:420px;margin:0 auto;padding:24px;color:#222}
+    h2{text-align:center;color:#d4237a;margin-bottom:4px;font-size:20px}
+    .fecha{text-align:center;color:#888;font-size:12px;margin-bottom:4px}
+    .cli{text-align:center;font-weight:bold;margin-bottom:16px;font-size:14px}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px}
+    td,th{padding:8px;border-bottom:1px solid #eee;font-size:13px}
+    th{background:#fff0f5;color:#d4237a;font-size:11px;text-align:left}
+    .row-tarjeta td{font-weight:bold;font-size:15px;border-top:2px solid #d4237a;padding-top:12px}
+    .row-efectivo td{font-weight:bold;font-size:15px;color:#059669;border-bottom:none}
+    .footer{text-align:center;color:#aaa;font-size:11px;margin-top:20px}
+    .badge{display:inline-block;background:#fff0f5;color:#d4237a;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:bold}
+    @media print{.no-print{display:none}}
+  </style></head><body>
+  <h2>💅 Mi Tienda Belleza</h2>
+  <div class="fecha">Presupuesto · ${fecha}</div>
+  ${p.cliente&&p.cliente!=='Sin nombre'?'<div class="cli">Para: '+p.cliente+'</div>':'<div style="margin-bottom:16px"></div>'}
+  <table>
+    <tr><th>Artículo</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th></tr>
+    ${p.items.map(it=>'<tr><td>'+it.nombre+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right">$'+(it.precio*it.qty).toLocaleString('es-AR')+'</td></tr>').join('')}
+    <tr class="row-tarjeta"><td colspan="2">💳 Tarjeta</td><td style="text-align:right">$${p.subtotal.toLocaleString('es-AR')}</td></tr>
+    <tr class="row-efectivo"><td colspan="2">💵 Efectivo / Transferencia${p.desc>0?' <span class="badge">-'+p.desc+'%</span>':''}</td><td style="text-align:right">$${p.total.toLocaleString('es-AR')}</td></tr>
+  </table>
+  <div class="footer">Gracias por elegirnos ♡</div>
+  <div class="no-print" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#d4237a;color:#fff;border:none;padding:10px 24px;border-radius:10px;font-size:14px;cursor:pointer">🖨️ Imprimir</button></div>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+}
+async function convertirPresupuesto(id){
+  const p=state.presupuestos.find(x=>String(x._id)===String(id));
+  if(!p){toast('No se encontró el presupuesto');return;}
+  if(p.estado==='convertido'){toast('Ya fue convertido en venta');return;}
+  // Cargar presupuesto en el carrito
+  state.cart=[];
+  p.items.forEach(it=>{
+    const art=state.articulos.find(a=>String(a._id)===String(it._artId)||a.nombre===it.nombre);
+    if(art){
+      state.cart.push({id:String(art._id),tipo:'articulos',nombre:art.nombre,precio:art.precio,qty:it.qty});
+    } else {
+      state.cart.push({id:'presu-'+Math.random(),tipo:'articulos',nombre:it.nombre,precio:it.precio,qty:it.qty});
+    }
+  });
+  // Guardar referencia al presupuesto de origen
+  state._presuOrigen=id;
+  // Abrir carrito con cliente preseleccionado
+  if(!state.caja){toast('Abrí la caja primero (sección Más)');return;}
+  renderCartItems();
+  const sel=document.getElementById('cart-cli');
+  sel.innerHTML='<option value="">Sin cliente</option>'+state.clientes.map(c=>`<option value="${c._id}">${c.nombre}</option>`).join('');
+  if(p.clienteId) sel.value=p.clienteId;
+  // Aplicar descuento
+  document.getElementById('cart-desc').value=p.desc||0;
+  renderCartSummary();
+  openModal('modal-carrito');
+  toast('Presupuesto cargado en carrito ✓');
 }
 async function borrarPresupuesto(id){
   if(!confirm('¿Borrar este presupuesto?')) return;
@@ -1661,17 +1849,78 @@ function iniciarSesion(nombre){
 }
 
 async function importarArticulosDesdeExcel(){
-  const datos = [{"nombre": "Aceite en Lápiz Naez", "categoria": "Otros", "precio": 2200, "stock": 6, "stockMin": 3}, {"nombre": "Barbijos Rosas x10u", "categoria": "Cuidado", "precio": 1400, "stock": 12, "stockMin": 3}, {"nombre": "Barbijos Rosas x2u", "categoria": "Cuidado", "precio": 300, "stock": 25, "stockMin": 3}, {"nombre": "Base Gel 10 ML Navi", "categoria": "Geles", "precio": 6600, "stock": 3, "stockMin": 3}, {"nombre": "Bloque 100/100 Mely", "categoria": "Limas", "precio": 1200, "stock": 4, "stockMin": 3}, {"nombre": "Bloque 4 Pasos", "categoria": "Limas", "precio": 1100, "stock": 12, "stockMin": 3}, {"nombre": "Bloque Pulidor Blanco", "categoria": "Limas", "precio": 950, "stock": 9, "stockMin": 3}, {"nombre": "Capuchones x10 Paris Night", "categoria": "Otros", "precio": 4500, "stock": 5, "stockMin": 3}, {"nombre": "Cepillos Rosas para uñas X10u", "categoria": "Otros", "precio": 4500, "stock": 3, "stockMin": 3}, {"nombre": "Cepillos Rosas para uñas x2u", "categoria": "Otros", "precio": 900, "stock": 9, "stockMin": 3}, {"nombre": "Clip en Y Corazón x5u", "categoria": "Otros", "precio": 1950, "stock": 0, "stockMin": 3}, {"nombre": "COMBO Lima metálica + 22 Repuestos Charm Limit", "categoria": "Limas", "precio": 8900, "stock": 4, "stockMin": 3}, {"nombre": "Compresas Ktex Rosas x10u", "categoria": "Cuidado", "precio": 2000, "stock": 2, "stockMin": 3}, {"nombre": "Compresas Rosas Ktex x50u", "categoria": "Cuidado", "precio": 5500, "stock": 2, "stockMin": 3}, {"nombre": "Corta Cutículas Tornasol", "categoria": "Otros", "precio": 3630, "stock": 11, "stockMin": 3}, {"nombre": "Esmalte Classic Red 13 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 14 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 15 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 16 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 17 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 18 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 19 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Classic Red 20 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 21 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 23 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Classic Red 24 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 5000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 13 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 15 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 16 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 17 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 18 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 19 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 20 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 21 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 22 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 23 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Cream White 24 Charm Limit 12ml", "categoria": "Esmaltes", "precio": 4000, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 71 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 75 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 0, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 77 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 79 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 80 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 81 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 86 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 87 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 88 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 93 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 1, "stockMin": 3}, {"nombre": "Esmalte Semipermanente 94 Charm Limit 10ml", "categoria": "Esmaltes", "precio": 2450, "stock": 0, "stockMin": 3}, {"nombre": "Guantes Nitrilo x10 Pares Negro S", "categoria": "Cuidado", "precio": 3300, "stock": 1, "stockMin": 3}, {"nombre": "Guantes Nitrilo x100pcs Rosa M", "categoria": "Cuidado", "precio": 9600, "stock": 2, "stockMin": 3}, {"nombre": "Guantes xPar Nitrilo Negro S", "categoria": "Cuidado", "precio": 350, "stock": 10, "stockMin": 3}, {"nombre": "Guantes xPar Nitrilo Rosa M", "categoria": "Cuidado", "precio": 350, "stock": 37, "stockMin": 3}, {"nombre": "Imán de Flor", "categoria": "Otros", "precio": 1950, "stock": 5, "stockMin": 3}, {"nombre": "Imán Pata de Gato", "categoria": "Otros", "precio": 3300, "stock": 7, "stockMin": 3}, {"nombre": "Kapping Gel Navi 15ML", "categoria": "Geles", "precio": 7600, "stock": 0, "stockMin": 3}, {"nombre": "Kapping y Transfer Gel Polish Charm Limit 10ml", "categoria": "Geles", "precio": 3650, "stock": 9, "stockMin": 3}, {"nombre": "KIT BIOSEGURIDAD", "categoria": "Otros", "precio": 7000, "stock": 2, "stockMin": 3}, {"nombre": "KIT FULL LIMAS", "categoria": "Limas", "precio": 7000, "stock": 5, "stockMin": 3}, {"nombre": "KIT KAPPING", "categoria": "Geles", "precio": 7000, "stock": 2, "stockMin": 3}, {"nombre": "KIT NAIL ART", "categoria": "Otros", "precio": 7000, "stock": 1, "stockMin": 3}, {"nombre": "Kit Press On x2", "categoria": "Otros", "precio": 2000, "stock": 0, "stockMin": 3}, {"nombre": "Lima Medialuna 100/100 DR X10u", "categoria": "Limas", "precio": 7500, "stock": 3, "stockMin": 3}, {"nombre": "Lima Medialuna 100/100 DR x5u", "categoria": "Limas", "precio": 4000, "stock": 4, "stockMin": 3}, {"nombre": "Lima Medialuna 100/180 Cherimoya", "categoria": "Limas", "precio": 1800, "stock": 11, "stockMin": 3}, {"nombre": "Lima Medialuna 100/180 Cherimoya x5u", "categoria": "Limas", "precio": 8500, "stock": 12, "stockMin": 3}, {"nombre": "Lima Medialuna 180/240 DR X10u", "categoria": "Limas", "precio": 7500, "stock": 3, "stockMin": 3}, {"nombre": "Lima Medialuna 180/240 DR X5u", "categoria": "Limas", "precio": 4000, "stock": 4, "stockMin": 3}, {"nombre": "Lima Medialuna 240/320 SK", "categoria": "Limas", "precio": 1200, "stock": 5, "stockMin": 3}, {"nombre": "Lima Medialuna 240/320 SK X5u", "categoria": "Limas", "precio": 6000, "stock": 4, "stockMin": 3}, {"nombre": "Microhisopos x10u", "categoria": "Cuidado", "precio": 230, "stock": 13, "stockMin": 3}, {"nombre": "Mini Lima 100/180 Pinky x2u", "categoria": "Limas", "precio": 890, "stock": 8, "stockMin": 3}, {"nombre": "Mini Lima 180/240 Naez x2u", "categoria": "Limas", "precio": 890, "stock": 12, "stockMin": 3}, {"nombre": "Mini Lima Sponge", "categoria": "Limas", "precio": 400, "stock": 12, "stockMin": 3}, {"nombre": "Mini Lima Sponge Corazón", "categoria": "Limas", "precio": 280, "stock": 9, "stockMin": 3}, {"nombre": "Mini Lima Sponge Corazón x5u", "categoria": "Limas", "precio": 1400, "stock": 8, "stockMin": 3}, {"nombre": "Mini Lima Sponge x5u", "categoria": "Limas", "precio": 1800, "stock": 5, "stockMin": 3}, {"nombre": "Mix de Decoraciones x6", "categoria": "Otros", "precio": 2200, "stock": 8, "stockMin": 3}, {"nombre": "Muestrario Almendra 25pcs + Aro", "categoria": "Otros", "precio": 1900, "stock": 0, "stockMin": 3}, {"nombre": "Muestrario Corazón x1 Tira", "categoria": "Otros", "precio": 1000, "stock": 10, "stockMin": 3}, {"nombre": "Muestrario Cuadrado 25 pcs + Aro", "categoria": "Otros", "precio": 1900, "stock": 3, "stockMin": 3}, {"nombre": "Ojo de Gato 01 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 01 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 02 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 02 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 0, "stockMin": 3}, {"nombre": "Ojo de Gato 03 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 03 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 0, "stockMin": 3}, {"nombre": "Ojo de Gato 04 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 04 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 05 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 05 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 06 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 06 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 07 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 07 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 0, "stockMin": 3}, {"nombre": "Ojo de Gato 08 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 08 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 0, "stockMin": 3}, {"nombre": "Ojo de Gato 09 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 09 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 0, "stockMin": 3}, {"nombre": "Ojo de Gato 10 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 10 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 11 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 11 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 0, "stockMin": 3}, {"nombre": "Ojo de Gato 12 Efecto AURORA Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato 12 MOONLIGHT Charm Limit 10ml", "categoria": "Otros", "precio": 4400, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 01 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 02 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 03 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 04 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 05 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 06 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 07 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 08 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 09 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 0, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 10 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 11 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Ojo de Gato ROJO 12 Charm Limit 10ml", "categoria": "Otros", "precio": 4500, "stock": 1, "stockMin": 3}, {"nombre": "Palitos de Naranjo 8cm x100u", "categoria": "Otros", "precio": 3200, "stock": 9, "stockMin": 3}, {"nombre": "Palitos de Naranjo 8cm x20u", "categoria": "Otros", "precio": 890, "stock": 20, "stockMin": 3}, {"nombre": "Palitos de Naranjo 8cm x40u", "categoria": "Otros", "precio": 1780, "stock": 9, "stockMin": 3}, {"nombre": "Papel Aluminio Foil", "categoria": "Otros", "precio": 5200, "stock": 3, "stockMin": 3}, {"nombre": "Pegamento para Strass Charm Limit 10ml", "categoria": "Otros", "precio": 4300, "stock": 2, "stockMin": 3}, {"nombre": "PH Balancing Agent Non-Acid Cherimoya 15ml", "categoria": "Otros", "precio": 9900, "stock": 5, "stockMin": 3}, {"nombre": "Pincel Pata de Cabra Charm Limit", "categoria": "Otros", "precio": 2750, "stock": 4, "stockMin": 3}, {"nombre": "Pincel Pelo de Marta N°8 Paris Night", "categoria": "Otros", "precio": 3100, "stock": 4, "stockMin": 3}, {"nombre": "Pincel Polygel con Espátula", "categoria": "Geles", "precio": 2700, "stock": 11, "stockMin": 3}, {"nombre": "Pincel Silicona para Polvos", "categoria": "Otros", "precio": 1400, "stock": 12, "stockMin": 3}, {"nombre": "Polygel Charm Limit 03 Intense Rose 30ml", "categoria": "Geles", "precio": 6300, "stock": 0, "stockMin": 3}, {"nombre": "Polygel Charm Limit 05 Perfect Clear 30ml", "categoria": "Geles", "precio": 6300, "stock": 2, "stockMin": 3}, {"nombre": "Polygel Charm Limit 06 Vía Láctea 30ml", "categoria": "Geles", "precio": 6300, "stock": 0, "stockMin": 3}, {"nombre": "Polygel Charm Limit 08 Pink Clear 30ml", "categoria": "Geles", "precio": 6300, "stock": 0, "stockMin": 3}, {"nombre": "Polygel Charm Limit 09 Soft Peach 30ml", "categoria": "Geles", "precio": 6300, "stock": 1, "stockMin": 3}, {"nombre": "Repujador City Girl", "categoria": "Otros", "precio": 5900, "stock": 2, "stockMin": 3}, {"nombre": "Repujador Dorado DR", "categoria": "Otros", "precio": 2200, "stock": 10, "stockMin": 3}, {"nombre": "Repujador Tornasol", "categoria": "Otros", "precio": 2900, "stock": 12, "stockMin": 3}, {"nombre": "Set x3 Pinceles para Nail Art", "categoria": "Otros", "precio": 3200, "stock": 7, "stockMin": 3}, {"nombre": "Set x5 Pinceles para Nail Art", "categoria": "Otros", "precio": 1750, "stock": 9, "stockMin": 3}, {"nombre": "Strass con Organizazor 12pcs", "categoria": "Otros", "precio": 2500, "stock": 9, "stockMin": 3}, {"nombre": "Strass para Nail Art", "categoria": "Otros", "precio": 2100, "stock": 8, "stockMin": 3}, {"nombre": "Top Coat No Wipe Navi 10ml", "categoria": "Cuidado", "precio": 6200, "stock": 1, "stockMin": 3}, {"nombre": "Ultrabond Sin Ácido Cherimoya 15ml", "categoria": "Otros", "precio": 9900, "stock": 5, "stockMin": 3}, {"nombre": "Vaso Dappen Calabaza Cherimoya", "categoria": "Otros", "precio": 1950, "stock": 10, "stockMin": 3}, {"nombre": "Wipes x100pcs", "categoria": "Cuidado", "precio": 1000, "stock": 38, "stockMin": 3}, {"nombre": "Wipes X660pcs", "categoria": "Cuidado", "precio": 6000, "stock": 8, "stockMin": 3}];
-  if(!confirm(`¿Importar ${datos.length} artículos desde el Excel?\n\nEsto NO borra los artículos existentes, solo agrega los nuevos.`)) return;
-  let agregados=0, saltados=0;
-  for(const art of datos){
-    const existe=state.articulos.find(a=>a.nombre.toLowerCase()===art.nombre.toLowerCase());
-    if(existe){ saltados++; continue; }
-    const saved=await dbInsert('articulos',art);
-    if(saved){ state.articulos.push(saved); agregados++; }
-  }
-  renderArticulos(); renderVentaList();
-  toast(`✓ ${agregados} importados, ${saltados} ya existían`);
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='.xlsx,.xls,.csv';
+  input.style.display='none';
+  document.body.appendChild(input);
+  input.click();
+  input.onchange=async function(){
+    const file=input.files[0];
+    if(!file){document.body.removeChild(input);return;}
+    toast('Leyendo archivo...',3000);
+    const reader=new FileReader();
+    reader.onload=async function(e){
+      try{
+        let datos=[];
+        if(file.name.toLowerCase().endsWith('.csv')){
+          const text=e.target.result;
+          const lines=text.split(/\r?\n/).filter(l=>l.trim());
+          if(!lines.length){toast('Archivo vacío');document.body.removeChild(input);return;}
+          const sep=lines[0].includes(';')?';':',';
+          const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase().replace(/[\s_\-áéíóúü]/gi,c=>({á:'a',é:'e',í:'i',ó:'o',ú:'u',ü:'u',' ':'','_':'','-':''}[c]||c)));
+          for(let i=1;i<lines.length;i++){
+            const cols=lines[i].split(sep);
+            const get=(...ks)=>{for(const k of ks){const idx=headers.indexOf(k);if(idx>=0&&cols[idx]!==undefined)return cols[idx].trim().replace(/^"|"$/g,'');}return '';};
+            const nombre=get('nombre','articulo','producto','descripcion','item');
+            if(!nombre)continue;
+            datos.push({
+              nombre,
+              categoria:get('categoria','rubro','tipo','cat')||'Otros',
+              precio:parseFloat(get('precio','price','valor').replace(/[^\d.]/g,''))||0,
+              stock:parseInt(get('stock','cantidad','qty','existencia'))||0,
+              stockMin:parseInt(get('stockmin','stockminimo','minimo','min'))||3
+            });
+          }
+        } else {
+          if(!window.XLSX){toast('Cargando XLSX...');document.body.removeChild(input);return;}
+          const wb=window.XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+          const ws=wb.Sheets[wb.SheetNames[0]];
+          const rows=window.XLSX.utils.sheet_to_json(ws,{defval:''});
+          rows.forEach(row=>{
+            const k=Object.keys(row).reduce((a,key)=>{a[key.toLowerCase().replace(/[\s_\-áéíóúü]/gi,c=>({á:'a',é:'e',í:'i',ó:'o',ú:'u',ü:'u',' ':'','_':'','-':''}[c]||c))]=row[key];return a;},{});
+            const get=(...ks)=>{for(const key of ks)if(k[key]!==undefined&&k[key]!=='')return String(k[key]).trim();return '';};
+            const nombre=get('nombre','articulo','producto','descripcion','item');
+            if(!nombre)return;
+            datos.push({
+              nombre,
+              categoria:get('categoria','rubro','tipo','cat')||'Otros',
+              precio:parseFloat(get('precio','price','valor').replace(/[^\d.]/g,''))||0,
+              stock:parseInt(get('stock','cantidad','qty','existencia'))||0,
+              stockMin:parseInt(get('stockmin','stockminimo','minimo','min'))||3
+            });
+          });
+        }
+        if(!datos.length){toast('No se encontraron artículos');document.body.removeChild(input);return;}
+        if(!confirm('¿Importar '+datos.length+' artículos?\n\nNO borra los existentes, solo agrega los nuevos.')){document.body.removeChild(input);return;}
+        let agregados=0,saltados=0;
+        for(const art of datos){
+          const existe=state.articulos.find(a=>a.nombre.toLowerCase()===art.nombre.toLowerCase());
+          if(existe){saltados++;continue;}
+          const saved=await dbInsert('articulos',art);
+          if(saved){state.articulos.push(saved);agregados++;}
+        }
+        renderArticulos();renderVentaList();
+        toast('✓ '+agregados+' importados, '+saltados+' ya existían');
+      }catch(err){console.error(err);toast('Error leyendo el archivo');}
+      document.body.removeChild(input);
+    };
+    if(file.name.toLowerCase().endsWith('.csv')){
+      reader.readAsText(file,'UTF-8');
+    }else{
+      reader.readAsArrayBuffer(file);
+    }
+  };
 }
 window.addEventListener('DOMContentLoaded',()=>{
   // Wait for Firebase module to be ready before init
@@ -1863,7 +2112,13 @@ function startApp(){
       <div class="page-title">Presupuesto</div>
       <div class="page-sub">Armá y enviá por WhatsApp o PDF</div>
       <div class="card">
-        <div class="form-group"><label>Nombre del cliente (opcional)</label><input id="presu-cliente" placeholder="Ej: María García"></div>
+        <div class="form-group">
+          <label>Cliente</label>
+          <select id="presu-cliente-sel" onchange="presuCliChange(this.value)" style="margin-bottom:6px">
+            <option value="">Sin cliente</option>
+          </select>
+          <input id="presu-cliente" placeholder="O escribí el nombre manualmente" style="display:none">
+        </div>
         <div class="form-group">
           <label>Descuento efectivo/transferencia</label>
           <div style="display:flex;gap:8px;margin-top:4px">
