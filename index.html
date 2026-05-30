@@ -1147,7 +1147,7 @@ function renderCajaDiaria(){
     todosMovs.push({hora:state.caja.horaApertura, tipo:'apertura', desc:'Apertura de caja', entrada:state.caja.inicio, salida:0, sub:''});
     ventasCaja.forEach(v=>{
       const cli = state.clientes.find(c=>String(c._id)===String(v.clienteId));
-      todosMovs.push({hora:v.fecha, tipo:'venta', desc:cli?cli.nombre:'Sin cliente', entrada:v.total, salida:0, sub:v.formaPago, nro:v.nro});
+      todosMovs.push({hora:v.fecha, tipo:'venta', desc:cli?cli.nombre:'Sin cliente', entrada:v.total, salida:0, sub:v.formaPago, nro:v.nro, ventaId:String(v._id)});
     });
     movs.forEach(m=>{
       todosMovs.push({hora:m.fecha, tipo:m.tipo, desc:m.desc||m.tipo, entrada:m.tipo==='ingreso'?m.monto:0, salida:m.tipo==='egreso'?m.monto:0, sub:''});
@@ -1170,16 +1170,37 @@ function renderCajaDiaria(){
     todosMovs.forEach(m=>{
       const hora = new Date(m.hora).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
       const isAp = m.tipo==='apertura';
-      const isEgr = m.salida>0;
       const bgColor = isAp?'var(--rose-soft)':'transparent';
-      html += '<div style="display:grid;grid-template-columns:46px 1fr 72px 72px;padding:9px 12px;border-bottom:1px solid var(--border);background:'+bgColor+';font-size:12px">';
-      html += '<span style="color:var(--text3);font-size:11px">'+hora+'</span>';
-      html += '<div><div style="font-weight:600">'+m.desc+(m.nro?' <span style="color:var(--text3);font-size:10px">#'+m.nro+'</span>':'')+'</div>';
-      if(m.sub) html += '<div style="font-size:10px;color:var(--text3)">'+(pagoLabel[m.sub]||m.sub)+'</div>';
-      html += '</div>';
-      html += '<span style="text-align:right;color:var(--green);font-weight:700;font-size:12px">'+(m.entrada>0?fmt(m.entrada):'')+'</span>';
-      html += '<span style="text-align:right;color:var(--red);font-weight:700;font-size:12px">'+(m.salida>0?fmt(m.salida):'')+'</span>';
-      html += '</div>';
+      const isVenta = m.tipo==='venta';
+      // Find venta details for items
+      const ventaObj = isVenta ? state.ventas.find(v=>String(v._id)===m.ventaId) : null;
+
+      if(isVenta && ventaObj){
+        // Tappable venta row with expandable details
+        const itemsHtml = (ventaObj.items||[]).map(i=>'<span style="display:inline-block;background:var(--bg3);border-radius:6px;padding:2px 7px;font-size:11px;margin:2px">'+i.qty+'x '+i.nombre+'</span>').join('');
+        const vid = 'vcv' + m.ventaId;
+        html += '<div style="border-bottom:1px solid var(--border)">';
+        html += '<div style="display:grid;grid-template-columns:46px 1fr 72px 72px;padding:9px 12px;background:'+bgColor+';font-size:12px;cursor:pointer" data-cvid="'+vid+'" onclick="toggleCajaVenta(this.dataset.cvid)">';
+        html += '<span style="color:var(--text3);font-size:11px">'+hora+'</span>';
+        html += '<div><div style="font-weight:600">'+m.desc+(m.nro?' <span style="color:var(--text3);font-size:10px">#'+m.nro+'</span>':'')+'</div>';
+        html += '<div style="font-size:10px;color:var(--text3)">'+(pagoLabel[m.sub]||m.sub)+' <i class="ti ti-chevron-down" style="font-size:10px"></i></div>';
+        html += '</div>';
+        html += '<span style="text-align:right;color:var(--green);font-weight:700;font-size:12px">'+fmt(m.entrada)+'</span>';
+        html += '<span></span></div>';
+        html += '<div id="'+vid+'" style="display:none;padding:8px 12px 10px;background:var(--bg3);border-top:1px solid var(--border)">';
+        html += '<div style="margin-bottom:8px">'+itemsHtml+'</div>';
+        html += '<button class="btn btn-danger btn-sm" data-ventaid="'+m.ventaId+'" onclick="borrarVentaDesdeCaja(this.dataset.ventaid)"><i class="ti ti-trash"></i> Borrar y devolver stock</button>';
+        html += '</div></div>';
+      } else {
+        html += '<div style="display:grid;grid-template-columns:46px 1fr 72px 72px;padding:9px 12px;border-bottom:1px solid var(--border);background:'+bgColor+';font-size:12px">';
+        html += '<span style="color:var(--text3);font-size:11px">'+hora+'</span>';
+        html += '<div><div style="font-weight:600">'+m.desc+'</div>';
+        if(m.sub) html += '<div style="font-size:10px;color:var(--text3)">'+(pagoLabel[m.sub]||m.sub)+'</div>';
+        html += '</div>';
+        html += '<span style="text-align:right;color:var(--green);font-weight:700;font-size:12px">'+(m.entrada>0?fmt(m.entrada):'')+'</span>';
+        html += '<span style="text-align:right;color:var(--red);font-weight:700;font-size:12px">'+(m.salida>0?fmt(m.salida):'')+'</span>';
+        html += '</div>';
+      }
     });
     html += '</div>';
 
@@ -1214,6 +1235,41 @@ function renderCajaDiaria(){
 
   // ── CAJAS ANTERIORES
   renderCajasAnteriores();
+}
+
+function toggleCajaVenta(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  el.style.display=el.style.display==='none'?'block':'none';
+}
+async function borrarVentaDesdeCaja(id){
+  if(!confirm('¿Borrar esta venta? Se devolverá el stock de los artículos.')) return;
+  const venta=state.ventas.find(v=>String(v._id)===String(id));
+  if(venta){
+    for(const c of (venta.items||[])){
+      if(c.tipo==='articulos'||!c.tipo){
+        const art=state.articulos.find(a=>String(a._id)===String(c.id));
+        if(art){
+          art.stock=(art.stock||0)+c.qty;
+          const {_id,...artSinId}=art;
+          await dbUpdate('articulos',art._id,artSinId);
+        }
+      }
+    }
+    // Revert cuenta corriente if had client
+    if(venta.clienteId){
+      const cli=state.clientes.find(c=>c._id===venta.clienteId);
+      if(cli&&cli.movimientos){
+        cli.movimientos=cli.movimientos.filter(m=>!(m.tipo==='venta'&&m.desc&&m.desc.includes('#'+venta.nro)));
+        await dbUpdate('clientes',cli._id,cli);
+      }
+    }
+  }
+  await dbDelete('ventas',id);
+  state.ventas=state.ventas.filter(v=>String(v._id)!==String(id));
+  renderCajaDiaria();
+  renderArticulos();
+  toast('Venta eliminada y stock devuelto ✓');
 }
 
 function renderCajasAnteriores(){
@@ -2557,7 +2613,7 @@ function startApp(){
     <button class="nav-btn active" onclick="goTo('venta',this)" id="nav-venta"><i class="ti ti-shopping-bag"></i>Venta</button>
     <button class="nav-btn" onclick="goTo('articulos',this)" id="nav-articulos"><i class="ti ti-package"></i>Artículos</button>
     <button class="nav-btn" onclick="goTo('clientes',this)" id="nav-clientes"><i class="ti ti-users"></i>Clientes</button>
-    <button class="nav-btn" onclick="goTo('caja',this)" id="nav-historial"><i class="ti ti-cash-register"></i>Caja</button>
+    <button class="nav-btn" onclick="goTo('caja',this)" id="nav-historial"><i class="ti ti-report-money"></i>Caja</button>
     <button class="nav-btn" onclick="goTo('presupuesto',this)" id="nav-presupuesto"><i class="ti ti-file-invoice"></i>Presu</button>
     <button class="nav-btn" onclick="goTo('mas',this)" id="nav-mas"><i class="ti ti-dots"></i>Más</button>
   </nav>
