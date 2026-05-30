@@ -1439,13 +1439,7 @@ async function registrarse(){
   if(!nombre||!pass){err.textContent='Completá todos los campos';err.style.display='block';return;}
   if(pass!==pass2){err.textContent='Las contraseñas no coinciden';err.style.display='block';return;}
   if(pass.length<4){err.textContent='La contraseña debe tener al menos 4 caracteres';err.style.display='block';return;}
-  // Verificar si ya existe en Supabase
-  const {data:existing}=await sb.from('usuarios').select('*');
-  const yaExiste=(existing||[]).find(r=>r.data?.nombre?.toLowerCase()===nombre.toLowerCase());
-  if(yaExiste){err.textContent='Ya existe una cuenta con ese nombre.';err.style.display='block';return;}
-  // Guardar en Supabase
-  const {data:insData,error}=await sb.from('usuarios').insert({data:{nombre,pass:btoa(pass)}}).select();
-  if(error){err.textContent='Error: '+error.message+' ('+error.code+')';err.style.display='block';return;}
+  // Guardar localmente
   localStorage.setItem('mtb_usuario',nombre);
   localStorage.setItem('mtb_pass',btoa(pass));
   err.style.display='none';
@@ -1457,31 +1451,19 @@ async function entrarApp(){
   const err=document.getElementById('login-error');
   if(!nombre){err.textContent='Ingresá tu nombre';err.style.display='block';return;}
   if(!pass){err.textContent='Ingresá tu contraseña';err.style.display='block';return;}
-  // Buscar en Supabase
-  const {data:rows}=await sb.from('usuarios').select('*');
-  const usuario=(rows||[]).find(r=>r.data?.nombre?.toLowerCase()===nombre.toLowerCase());
-  if(usuario){
-    if(btoa(pass)!==usuario.data.pass){
-      err.textContent='Contraseña incorrecta';err.style.display='block';return;
-    }
-    localStorage.setItem('mtb_usuario',nombre);
-    localStorage.setItem('mtb_pass',btoa(pass));
-    err.style.display='none';
-    iniciarSesion(nombre);
-    return;
-  }
-  // Fallback: localStorage (compatibilidad con cuentas viejas)
   const savedNombre=localStorage.getItem('mtb_usuario');
   const savedPass=localStorage.getItem('mtb_pass');
-  if(savedNombre&&savedPass&&nombre.toLowerCase()===savedNombre.toLowerCase()&&btoa(pass)===savedPass){
-    // Migrar a Supabase
-    await sb.from('usuarios').insert({data:{nombre:savedNombre,pass:savedPass}}).catch(()=>{});
-    err.style.display='none';
-    iniciarSesion(savedNombre);
-    return;
+  if(!savedNombre||!savedPass){
+    err.textContent='No hay ninguna cuenta creada. Tocá "Crear cuenta".';err.style.display='block';return;
   }
-  err.textContent='Usuario o contraseña incorrectos. Si es la primera vez, tocá "Crear cuenta".';
-  err.style.display='block';
+  if(nombre.toLowerCase()!==savedNombre.toLowerCase()){
+    err.textContent='Usuario incorrecto';err.style.display='block';return;
+  }
+  if(btoa(pass)!==savedPass){
+    err.textContent='Contraseña incorrecta';err.style.display='block';return;
+  }
+  err.style.display='none';
+  iniciarSesion(savedNombre);
 }
 function iniciarSesion(nombre){
   document.getElementById('login-screen').style.display='none';
