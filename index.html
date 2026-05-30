@@ -403,6 +403,16 @@ async function init(){
   // migrate old cajas without fechaISO
   state.cajasHist.forEach(c=>{if(!c.fecha) c.fecha=c.fechaISO||'Sin fecha';});
   renderVentaList();renderArticulos();renderClientes();renderCajaPanel();
+  // Crear Consumidor Final si no existe
+  if(!state.clientes.find(c=>c.nombre==='Consumidor Final')){
+    const cfObj={nombre:'Consumidor Final',telefono:'',direccion:'',extra:'',saldo:0,movimientos:[]};
+    dbInsert('clientes',cfObj).then(saved=>{if(saved){state.clientes.unshift(saved);renderClientes();}});
+  }
+  // Crear artículo Envío si no existe
+  if(!state.articulos.find(a=>a.nombre==='Envío')){
+    const envObj={nombre:'Envío',categoria:'Servicios',precio:3500,stock:999,stockMin:0};
+    dbInsert('articulos',envObj).then(saved=>{if(saved){state.articulos.push(saved);renderArticulos();renderVentaList();}});
+  }
   if(state.caja) document.getElementById('caja-status').textContent='Caja abierta ✓';
   // stock alerts
   const sinStock=state.articulos.filter(a=>a.stock===0);
@@ -1144,19 +1154,37 @@ function renderCajaPanel(){
         </div>`;
       }).join('')}
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <button class="btn btn-secondary btn-full btn-sm" onclick="openMovCaja('ingreso')">➕ Ingreso</button>
-      <button class="btn btn-secondary btn-full btn-sm" onclick="openMovCaja('egreso')">➖ Egreso</button>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="btn btn-secondary btn-full btn-sm" onclick="openMovCaja('ingreso')"><i class="ti ti-plus"></i> Ingreso</button>
+      <button class="btn btn-secondary btn-full btn-sm" onclick="openMovCaja('egreso')"><i class="ti ti-minus"></i> Egreso</button>
     </div>
-    ${(state.caja.movimientos||[]).length?`
-    <div style="margin-bottom:10px;max-height:120px;overflow-y:auto">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">INGRESOS / EGRESOS</div>
-      ${(state.caja.movimientos||[]).slice().reverse().map(m=>`
-        <div style="display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">
-          <div><span style="color:${m.tipo==='ingreso'?'var(--green)':' var(--red)'}">${m.tipo==='ingreso'?'➕':' ➖'}</span> ${m.desc||m.tipo}</div>
-          <span style="font-weight:700;color:${m.tipo==='ingreso'?'var(--green)':' var(--red)'}">${m.tipo==='ingreso'?'+':'-'}${fmt(m.monto)}</span>
-        </div>`).join('')}
-    </div>`:''}
+    ${(()=>{
+      const movs=state.caja.movimientos||[];
+      if(!movs.length) return '';
+      const totalIng=movs.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
+      const totalEgr=movs.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
+      return\`<div style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">INGRESOS / EGRESOS</div>
+        <div style="max-height:140px;overflow-y:auto;margin-bottom:10px">
+          \${movs.slice().reverse().map(m=>\`
+            <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:6px 0;border-bottom:1px solid var(--border)">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-size:14px">\${m.tipo==='ingreso'?'➕':'➖'}</span>
+                <div>
+                  <div style="font-weight:600">\${m.desc||m.tipo}</div>
+                  <div style="color:var(--text3);font-size:10px">\${new Date(m.fecha).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'})}</div>
+                </div>
+              </div>
+              <span style="font-weight:700;color:\${m.tipo==='ingreso'?'var(--green)':'var(--red)'}">\${m.tipo==='ingreso'?'+':'-'}\${fmt(m.monto)}</span>
+            </div>\`).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;padding-top:6px;border-top:1.5px solid var(--border2)">
+          <span style="color:var(--green);font-weight:700">Ing: \${fmt(totalIng)}</span>
+          <span style="color:var(--red);font-weight:700">Egr: \${fmt(totalEgr)}</span>
+          <span style="font-weight:800">Neto: \${fmt(totalIng-totalEgr)}</span>
+        </div>
+      </div>\`;
+    })()}
     <button class="btn btn-danger btn-full" onclick="cerrarCaja()">🔒 Cerrar caja</button>
     ${cajasHistHTML()}
   `;
@@ -1193,16 +1221,139 @@ function verCaja(id){
   });
   const totales={efectivo:0,transferencia:0,tarjeta:0,cuenta_corriente:0};
   ventasCaja.forEach(v=>totales[v.formaPago]=(totales[v.formaPago]||0)+v.total);
-  const total=Object.values(totales).reduce((s,v)=>s+v,0);
-  alert(`📦 Caja ${c.fecha}
-Apertura: ${fmt(c.inicio)}
-Ventas: ${ventasCaja.length}
-Efectivo: ${fmt(totales.efectivo)}
-Transf: ${fmt(totales.transferencia)}
-Tarjeta: ${fmt(totales.tarjeta)}
-Cta cte: ${fmt(totales.cuenta_corriente)}
-TOTAL vendido: ${fmt(total)}
-Total efectivo: ${fmt(c.inicio+totales.efectivo)}`);
+  const totalVentas=Object.values(totales).reduce((s,v)=>s+v,0);
+  const movs=c.movimientos||[];
+  const totalIng=movs.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
+  const totalEgr=movs.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
+  const efectivoFinal=c.inicio+totales.efectivo+totalIng-totalEgr;
+  // Armar todos los movimientos en orden cronologico
+  const todosMovs=[];
+  // Apertura
+  todosMovs.push({hora:c.horaApertura,tipo:'apertura',desc:'Apertura de caja',entrada:c.inicio,salida:0});
+  // Ventas
+  ventasCaja.forEach(v=>{
+    const cli=state.clientes.find(cl=>String(cl._id)===String(v.clienteId));
+    todosMovs.push({hora:v.fecha,tipo:'venta',desc:(cli?cli.nombre:'Sin cliente')+' · Venta #'+(v.nro||''),entrada:v.total,salida:0,sub:v.formaPago});
+  });
+  // Ingresos/egresos
+  movs.forEach(m=>{
+    todosMovs.push({hora:m.fecha,tipo:m.tipo,desc:m.desc||m.tipo,entrada:m.tipo==='ingreso'?m.monto:0,salida:m.tipo==='egreso'?m.monto:0});
+  });
+  todosMovs.sort((a,b)=>new Date(a.hora)-new Date(b.hora));
+
+  const html=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <div class="modal-title" style="margin-bottom:0">Reporte de Caja</div>
+      <button class="btn btn-secondary btn-icon btn-sm" onclick="closeModal('modal-reporte-caja')"><i class="ti ti-x"></i></button>
+    </div>
+    <div style="font-size:12px;color:var(--text2);margin-bottom:14px">${c.fecha||fmtFecha(c.horaApertura)}</div>
+
+    <!-- TABLA MOVIMIENTOS -->
+    <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.05em;margin-bottom:6px">MOVIMIENTOS</div>
+    <div style="border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:60px 1fr 80px 80px;background:var(--bg3);padding:7px 10px;font-size:10px;font-weight:700;color:var(--text2);letter-spacing:.04em;text-transform:uppercase">
+        <span>Hora</span><span>Detalle</span><span style="text-align:right">Entrada</span><span style="text-align:right">Salida</span>
+      </div>
+      <div style="max-height:240px;overflow-y:auto">
+        ${todosMovs.map(m=>{
+          const hora=new Date(m.hora).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+          const isEgr=m.salida>0;
+          const isAp=m.tipo==='apertura';
+          return`<div style="display:grid;grid-template-columns:60px 1fr 80px 80px;padding:7px 10px;border-top:1px solid var(--border);font-size:12px;background:${isAp?'var(--rose-soft)':'transparent'}">
+            <span style="color:var(--text3)">${hora}</span>
+            <div>
+              <div style="font-weight:500">${m.desc}</div>
+              ${m.sub?'<div style="font-size:10px;color:var(--text3)">'+m.sub+'</div>':''}
+            </div>
+            <span style="text-align:right;color:var(--green);font-weight:600">${m.entrada>0?fmt(m.entrada):''}</span>
+            <span style="text-align:right;color:var(--red);font-weight:600">${m.salida>0?fmt(m.salida):''}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+
+    <!-- RESUMEN POR FORMA DE PAGO -->
+    <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.05em;margin-bottom:6px">VENTAS POR FORMA DE PAGO</div>
+    <div style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:14px;font-size:13px">
+      ${[['💵 Efectivo','efectivo'],['📱 Transferencia','transferencia'],['💳 Tarjeta','tarjeta'],['📋 Cta. Cte.','cuenta_corriente']].map(([lbl,key])=>
+        `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>${lbl}</span><span style="font-weight:700">${fmt(totales[key])}</span></div>`
+      ).join('')}
+      <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:15px;font-weight:800"><span>Total vendido</span><span style="color:var(--rose)">${fmt(totalVentas)}</span></div>
+    </div>
+
+    <!-- RESUMEN CAJA -->
+    <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.05em;margin-bottom:6px">RESUMEN CAJA</div>
+    <div style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:16px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>Apertura</span><span style="font-weight:600">${fmt(c.inicio)}</span></div>
+      <div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>Ventas en efectivo</span><span style="font-weight:600;color:var(--green)">+${fmt(totales.efectivo)}</span></div>
+      ${totalIng>0?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>Ingresos</span><span style="font-weight:600;color:var(--green)">+${fmt(totalIng)}</span></div>`:''}
+      ${totalEgr>0?`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border)"><span>Egresos</span><span style="font-weight:600;color:var(--red)">-${fmt(totalEgr)}</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;padding:8px 0 4px;font-size:16px;font-weight:800;border-top:2px solid var(--border2)"><span>Efectivo en caja</span><span style="color:var(--rose)">${fmt(efectivoFinal)}</span></div>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="imprimirReporteCaja('${id}')"><i class="ti ti-printer"></i> Imprimir reporte</button>
+  `;
+  document.getElementById('reporte-caja-content').innerHTML=html;
+  openModal('modal-reporte-caja');
+}
+function imprimirReporteCaja(id){
+  const c=state.cajasHist.find(x=>String(x._id)===String(id));
+  if(!c) return;
+  const apertura=new Date(c.horaApertura);
+  const cierre=c.horaCierre?new Date(c.horaCierre):null;
+  const ventasCaja=state.ventas.filter(v=>{const t=new Date(v.fecha);return t>=apertura&&(!cierre||t<=cierre);});
+  const totales={efectivo:0,transferencia:0,tarjeta:0,cuenta_corriente:0};
+  ventasCaja.forEach(v=>totales[v.formaPago]=(totales[v.formaPago]||0)+v.total);
+  const totalVentas=Object.values(totales).reduce((s,v)=>s+v,0);
+  const movs=c.movimientos||[];
+  const totalIng=movs.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
+  const totalEgr=movs.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
+  const efectivoFinal=c.inicio+totales.efectivo+totalIng-totalEgr;
+  const todosMovs=[];
+  todosMovs.push({hora:c.horaApertura,desc:'Apertura de caja',entrada:c.inicio,salida:0});
+  ventasCaja.forEach(v=>{const cli=state.clientes.find(cl=>String(cl._id)===String(v.clienteId));todosMovs.push({hora:v.fecha,desc:(cli?cli.nombre:'Sin cliente')+' · Venta #'+(v.nro||''),entrada:v.total,salida:0,sub:v.formaPago});});
+  movs.forEach(m=>todosMovs.push({hora:m.fecha,desc:m.desc||m.tipo,entrada:m.tipo==='ingreso'?m.monto:0,salida:m.tipo==='egreso'?m.monto:0}));
+  todosMovs.sort((a,b)=>new Date(a.hora)-new Date(b.hora));
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#222;font-size:13px}
+    h2{text-align:center;color:#d4237a;margin-bottom:2px}
+    .sub{text-align:center;color:#888;font-size:12px;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;margin-bottom:20px}
+    th{background:#fff0f5;color:#d4237a;padding:7px 8px;text-align:left;font-size:11px;border-bottom:2px solid #f0d4e4}
+    td{padding:6px 8px;border-bottom:1px solid #f0e8f0}
+    tr:nth-child(even) td{background:#fdf8fb}
+    .entrada{color:#059669;font-weight:700;text-align:right}
+    .salida{color:#dc2626;font-weight:700;text-align:right}
+    .resumen{background:#fdf8fb;border:1px solid #f0d4e4;border-radius:8px;padding:14px;margin-bottom:16px}
+    .resumen-row{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #f0e8f0;font-size:13px}
+    .total-row{display:flex;justify-content:space-between;padding:8px 0;font-size:16px;font-weight:800;border-top:2px solid #d4237a;margin-top:4px}
+    .footer{text-align:center;color:#aaa;font-size:11px;margin-top:20px}
+    @media print{.no-print{display:none}}
+  </style></head><body>
+  <h2>💅 Mi Tienda Belleza</h2>
+  <div class="sub">Reporte de Caja · ${c.fecha||fmtFecha(c.horaApertura)}</div>
+  <table>
+    <tr><th>Hora</th><th>Detalle</th><th style="text-align:right">Entrada</th><th style="text-align:right">Salida</th></tr>
+    ${todosMovs.map(m=>{
+      const hora=new Date(m.hora).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+      return'<tr><td>'+hora+'</td><td>'+m.desc+(m.sub?' <small>('+m.sub+')</small>':'')+'</td><td class="entrada">'+(m.entrada>0?'$'+m.entrada.toLocaleString('es-AR'):'')+'</td><td class="salida">'+(m.salida>0?'$'+m.salida.toLocaleString('es-AR'):'')+'</td></tr>';
+    }).join('')}
+  </table>
+  <div class="resumen">
+    <div class="resumen-row"><span>Apertura</span><span>$${c.inicio.toLocaleString('es-AR')}</span></div>
+    <div class="resumen-row"><span>Ventas efectivo</span><span style="color:#059669">+$${totales.efectivo.toLocaleString('es-AR')}</span></div>
+    <div class="resumen-row"><span>Ventas transferencia</span><span>$${totales.transferencia.toLocaleString('es-AR')}</span></div>
+    <div class="resumen-row"><span>Ventas tarjeta</span><span>$${totales.tarjeta.toLocaleString('es-AR')}</span></div>
+    <div class="resumen-row"><span>Ventas cta. cte.</span><span>$${totales.cuenta_corriente.toLocaleString('es-AR')}</span></div>
+    ${totalIng>0?'<div class="resumen-row"><span>Ingresos manuales</span><span style="color:#059669">+$'+totalIng.toLocaleString('es-AR')+'</span></div>':""}
+    ${totalEgr>0?'<div class="resumen-row"><span>Egresos manuales</span><span style="color:#dc2626">-$'+totalEgr.toLocaleString('es-AR')+'</span></div>':""}
+    <div class="total-row"><span>Efectivo en caja</span><span style="color:#d4237a">$${efectivoFinal.toLocaleString('es-AR')}</span></div>
+  </div>
+  <div class="footer">Cierre: ${cierre?cierre.toLocaleString('es-AR'):'-'} · Total vendido: $${totalVentas.toLocaleString('es-AR')}</div>
+  <div class="no-print" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="background:#d4237a;color:#fff;border:none;padding:10px 24px;border-radius:10px;font-size:14px;cursor:pointer">🖨️ Imprimir</button></div>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
 }
 async function abrirCaja(){
   const inicio=parseFloat(document.getElementById('caja-inicio').value)||0;
@@ -1213,6 +1364,33 @@ async function abrirCaja(){
   if(saved) state.caja={...obj,_id:saved._id};
   closeModal('modal-caja');renderCajaPanel();
   toast('¡Caja abierta! 🎉');
+}
+function openNuevoClienteDesdeVenta(){
+  // Mini modal rápido para crear cliente sin salir del carrito
+  document.getElementById('ncv-nombre').value='';
+  document.getElementById('ncv-tel').value='';
+  openModal('modal-nuevo-cli-venta');
+}
+async function guardarNuevoCliVenta(){
+  const nombre=document.getElementById('ncv-nombre').value.trim();
+  const telefono=document.getElementById('ncv-tel').value.trim();
+  if(!nombre){toast('Ingresá un nombre');return;}
+  const dup=state.clientes.find(c=>c.nombre.toLowerCase()===nombre.toLowerCase());
+  if(dup){toast('Ya existe ese cliente');closeModal('modal-nuevo-cli-venta');document.getElementById('cart-cli').value=dup._id;return;}
+  const obj={nombre,telefono,direccion:'',extra:'',saldo:0,movimientos:[]};
+  const saved=await dbInsert('clientes',obj);
+  if(saved){
+    state.clientes.push(saved);
+    // Actualizar todos los selectores de clientes
+    const sel=document.getElementById('cart-cli');
+    const opt=document.createElement('option');
+    opt.value=saved._id;opt.textContent=nombre;
+    sel.appendChild(opt);
+    sel.value=saved._id;
+    closeModal('modal-nuevo-cli-venta');
+    renderClientes();
+    toast('Cliente creado ✓');
+  }
 }
 function openMovCaja(tipo){
   document.getElementById('modal-mov-title').textContent=tipo==='ingreso'?'Ingreso de efectivo':'Egreso de efectivo';
@@ -2287,7 +2465,13 @@ function startApp(){
     </div>
     <div id="cart-summary" style="background:var(--bg3);border-radius:10px;padding:14px;margin:8px 0"></div>
     <div class="divider"></div>
-    <div class="form-group"><label>Cliente</label><select id="cart-cli"><option value="">Sin cliente</option></select></div>
+    <div class="form-group">
+      <label>Cliente</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="cart-cli" style="flex:1"><option value="">Sin cliente</option></select>
+        <button type="button" class="btn btn-secondary btn-icon btn-sm" onclick="openNuevoClienteDesdeVenta()" title="Crear nuevo cliente"><i class="ti ti-user-plus"></i></button>
+      </div>
+    </div>
     <div class="form-group">
       <label>Forma de pago</label>
       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px" id="pagos-container">
@@ -2399,6 +2583,34 @@ function startApp(){
 
 
 
+
+<!-- MODAL NUEVO CLIENTE DESDE VENTA -->
+<div id="modal-nuevo-cli-venta" class="modal-bg">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nuevo cliente rápido</div>
+    <div class="form-group">
+      <label>Nombre *</label>
+      <input id="ncv-nombre" placeholder="Nombre del cliente">
+    </div>
+    <div class="form-group">
+      <label>Teléfono</label>
+      <input id="ncv-tel" type="tel" placeholder="Ej: 1123456789">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-full" onclick="closeModal('modal-nuevo-cli-venta')">Cancelar</button>
+      <button class="btn btn-primary btn-full" onclick="guardarNuevoCliVenta()"><i class="ti ti-check"></i> Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REPORTE CAJA -->
+<div id="modal-reporte-caja" class="modal-bg">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div id="reporte-caja-content"></div>
+  </div>
+</div>
 
 </body>
 </html>
