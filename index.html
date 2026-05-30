@@ -402,7 +402,7 @@ async function init(){
   state.caja=cajaData.find(c=>!c.cerrada)||null;
   // migrate old cajas without fechaISO
   state.cajasHist.forEach(c=>{if(!c.fecha) c.fecha=c.fechaISO||'Sin fecha';});
-  renderVentaList();renderArticulos();renderClientes();renderCajaDiaria();
+  renderVentaList();renderArticulos();renderClientes();renderCajaDiaria();renderStockAlertBanner();
   // Crear Consumidor Final si no existe
   if(!state.clientes.find(c=>c.nombre==='Consumidor Final')){
     const cfObj={nombre:'Consumidor Final',telefono:'',direccion:'',extra:'',saldo:0,movimientos:[]};
@@ -523,6 +523,7 @@ function renderArticulos(){
   else if(combosSection)
     html=`<button class="btn btn-secondary btn-full btn-sm" style="margin-bottom:10px" onclick="openComboModal()"><i class="ti ti-gift"></i> Nuevo Combo</button>`+html;
   document.getElementById('art-list').innerHTML=html;
+  renderStockAlertBanner();
 }
 
 function openComboModal(){
@@ -740,12 +741,14 @@ async function confirmarVenta(){
     pagosDetalle={};
     pagosSeleccionados.forEach(k=>{pagosDetalle[k]=parseFloat(document.getElementById('monto-'+k)?.value)||0;});
   }
+  const nota=document.getElementById('cart-nota')?.value?.trim()||'';
   const venta={
     fecha:new Date().toISOString(),
     items:[...state.cart],
     subtotal:sub,descuento:desc,total,
     clienteId:cliId,formaPago,pagosDetalle,
-    nro:state.ventas.length+1
+    nro:state.ventas.length+1,
+    nota
   };
   for(const c of state.cart){
     if(c.tipo==='articulos'){
@@ -785,6 +788,8 @@ async function confirmarVenta(){
     }
   }
   state.cart=[];
+  const notaEl=document.getElementById('cart-nota');
+  if(notaEl) notaEl.value='';
   closeModal('modal-carrito');
   renderVentaList();renderArticulos();
   toast('Venta confirmada ✓');
@@ -987,7 +992,10 @@ function openFicha(id){
             </div>
             <div style="color:var(--text2);font-size:11px;margin-top:1px">${new Date(m.fecha).toLocaleDateString('es-AR')} · ${m.sub}</div>
           </div>
-          <div style="font-weight:800;color:var(--rose)">${fmt(m.monto)}</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="font-weight:800;color:var(--rose)">${fmt(m.monto)}</div>
+            ${m.tipo==='venta'?`<button style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--text2)" onclick="verTicketVenta('`+m.id+`')">🧾</button>`:''}
+          </div>
         </div>`).join('');
     })()}
   `;
@@ -1068,8 +1076,8 @@ function renderHistorial(){
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
-        <button class="btn btn-secondary btn-sm" onclick="mostrarTicketById('${v._id||''}', ${idx})">🧾 Ver comprobante</button>
-        <button class="btn btn-danger btn-sm" onclick="borrarVenta('${vid}')">🗑 Borrar</button>
+        <button class="btn btn-secondary btn-sm" onclick="verTicketVenta('${v._id||''}')"><i class="ti ti-receipt"></i> Ticket</button>
+        <button class="btn btn-danger btn-sm" onclick="borrarVenta('${vid}')"><i class="ti ti-trash"></i> Borrar</button>
       </div>
     </div>`;
   }).join('')||`<div style="text-align:center;padding:30px;color:var(--text3)">Sin ventas aún</div>`;
@@ -1178,6 +1186,7 @@ function renderCajaDiaria(){
       if(isVenta && ventaObj){
         // Tappable venta row with expandable details
         const itemsHtml = (ventaObj.items||[]).map(i=>'<span style="display:inline-block;background:var(--bg3);border-radius:6px;padding:2px 7px;font-size:11px;margin:2px">'+i.qty+'x '+i.nombre+'</span>').join('');
+        const notaHtml = ventaObj.nota?'<div style="font-size:11px;color:var(--text2);margin-bottom:6px">📝 '+ventaObj.nota+'</div>':'';
         const vid = 'vcv' + m.ventaId;
         html += '<div style="border-bottom:1px solid var(--border)">';
         html += '<div style="display:grid;grid-template-columns:46px 1fr 72px 72px;padding:9px 12px;background:'+bgColor+';font-size:12px;cursor:pointer" data-cvid="'+vid+'" onclick="toggleCajaVenta(this.dataset.cvid)">';
@@ -1188,17 +1197,26 @@ function renderCajaDiaria(){
         html += '<span style="text-align:right;color:var(--green);font-weight:700;font-size:12px">'+fmt(m.entrada)+'</span>';
         html += '<span></span></div>';
         html += '<div id="'+vid+'" style="display:none;padding:8px 12px 10px;background:var(--bg3);border-top:1px solid var(--border)">';
-        html += '<div style="margin-bottom:8px">'+itemsHtml+'</div>';
+        html += '<div style="margin-bottom:6px">'+itemsHtml+'</div>';
+        html += notaHtml;
         html += '<button class="btn btn-danger btn-sm" data-ventaid="'+m.ventaId+'" onclick="borrarVentaDesdeCaja(this.dataset.ventaid)"><i class="ti ti-trash"></i> Borrar y devolver stock</button>';
         html += '</div></div>';
       } else {
-        html += '<div style="display:grid;grid-template-columns:46px 1fr 72px 72px;padding:9px 12px;border-bottom:1px solid var(--border);background:'+bgColor+';font-size:12px">';
+        const isMovimiento = m.tipo==='ingreso'||m.tipo==='egreso';
+        html += '<div style="border-bottom:1px solid var(--border);background:'+bgColor+'">';
+        html += '<div style="display:grid;grid-template-columns:46px 1fr 72px 72px;padding:9px 12px;font-size:12px">';
         html += '<span style="color:var(--text3);font-size:11px">'+hora+'</span>';
         html += '<div><div style="font-weight:600">'+m.desc+'</div>';
         if(m.sub) html += '<div style="font-size:10px;color:var(--text3)">'+(pagoLabel[m.sub]||m.sub)+'</div>';
         html += '</div>';
         html += '<span style="text-align:right;color:var(--green);font-weight:700;font-size:12px">'+(m.entrada>0?fmt(m.entrada):'')+'</span>';
         html += '<span style="text-align:right;color:var(--red);font-weight:700;font-size:12px">'+(m.salida>0?fmt(m.salida):'')+'</span>';
+        html += '</div>';
+        if(isMovimiento){
+          html += '<div style="padding:0 12px 8px;display:flex;justify-content:flex-end">';
+          html += '<button class="btn btn-danger btn-sm" data-movfecha="'+m.hora+'" onclick="borrarMovCaja(this.dataset.movfecha)"><i class="ti ti-trash"></i> Eliminar</button>';
+          html += '</div>';
+        }
         html += '</div>';
       }
     });
@@ -1235,6 +1253,16 @@ function renderCajaDiaria(){
 
   // ── CAJAS ANTERIORES
   renderCajasAnteriores();
+}
+
+async function borrarMovCaja(fecha){
+  if(!confirm('¿Eliminar este movimiento?')) return;
+  if(!state.caja||!state.caja.movimientos) return;
+  state.caja.movimientos = state.caja.movimientos.filter(m=>m.fecha!==fecha);
+  const {_id,...cajaSinId} = state.caja;
+  await dbUpdate('cajas', state.caja._id, cajaSinId);
+  renderCajaDiaria();
+  toast('Movimiento eliminado ✓');
 }
 
 function toggleCajaVenta(id){
@@ -2205,6 +2233,118 @@ function presuPDF(){
   w.document.close();
   setTimeout(()=>w.print(),400);
 }
+
+// ══ STOCK ALERT BANNER ══════════════════════════════
+function renderStockAlertBanner(){
+  const el=document.getElementById('stock-alerta-banner');
+  if(!el) return;
+  const bajos=state.articulos.filter(a=>a.stock<=a.stockMin&&a.nombre!=='Envío');
+  const agotados=bajos.filter(a=>a.stock===0);
+  const pocos=bajos.filter(a=>a.stock>0);
+  if(!bajos.length){el.innerHTML='';return;}
+  let html='<div style="background:rgba(217,119,6,.1);border:1.5px solid rgba(217,119,6,.3);border-radius:12px;padding:12px;margin-bottom:12px">';
+  html+='<div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:6px">⚠️ ALERTAS DE STOCK</div>';
+  agotados.forEach(a=>{html+='<div style="font-size:12px;padding:3px 0;color:var(--red)">❌ '+a.nombre+' — <strong>Sin stock</strong></div>';});
+  pocos.forEach(a=>{html+='<div style="font-size:12px;padding:3px 0;color:var(--amber)">⚠️ '+a.nombre+' — <strong>'+a.stock+' restantes</strong> (mín. '+a.stockMin+')</div>';});
+  html+='</div>';
+  el.innerHTML=html;
+}
+
+// ══ VER TICKET DE VENTA GUARDADA ════════════════════
+function verTicketVenta(id){
+  const v=state.ventas.find(x=>String(x._id)===String(id));
+  if(!v){toast('Venta no encontrada');return;}
+  const cli=state.clientes.find(c=>String(c._id)===String(v.clienteId));
+  const fecha=new Date(v.fecha).toLocaleString('es-AR');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{font-family:Arial,sans-serif;max-width:380px;margin:0 auto;padding:24px;color:#222;font-size:13px}
+    h2{text-align:center;color:#d4237a;margin-bottom:2px}
+    .sub{text-align:center;color:#888;font-size:11px;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin-bottom:14px}
+    td{padding:6px 4px;border-bottom:1px solid #f0e8f0;font-size:13px}
+    .total{font-size:16px;font-weight:800;text-align:right;color:#d4237a;padding-top:10px}
+    .footer{text-align:center;color:#aaa;font-size:11px;margin-top:14px}
+    .nota{font-size:11px;color:#888;margin-bottom:10px;font-style:italic}
+    @media print{.no-print{display:none}}
+  </style></head><body>
+  <h2>💅 Mi Tienda Belleza</h2>
+  <div class="sub">Venta #${v.nro||''} · ${fecha}</div>
+  ${cli?'<div style="text-align:center;font-weight:bold;margin-bottom:12px">'+cli.nombre+'</div>':''}
+  <table>
+    ${(v.items||[]).map(i=>'<tr><td>'+i.qty+'x '+i.nombre+'</td><td style="text-align:right">$'+(i.precio*i.qty).toLocaleString('es-AR')+'</td></tr>').join('')}
+    ${v.descuento>0?'<tr><td style="color:#059669">Descuento</td><td style="text-align:right;color:#059669">-$'+v.descuento.toLocaleString('es-AR')+'</td></tr>':''}
+  </table>
+  <div class="total">Total: $${v.total.toLocaleString('es-AR')}</div>
+  <div style="font-size:12px;margin-top:6px;text-align:right">Pago: ${v.pagosDetalle?Object.entries(v.pagosDetalle).map(([k,m])=>k+' $'+Number(m).toLocaleString('es-AR')).join(' + '):v.formaPago}</div>
+  ${v.nota?'<div class="nota">📝 '+v.nota+'</div>':''}
+  <div class="footer">Gracias por elegirnos ♡</div>
+  <div class="no-print" style="text-align:center;margin-top:16px"><button onclick="window.print()" style="background:#d4237a;color:#fff;border:none;padding:10px 24px;border-radius:10px;font-size:14px;cursor:pointer">🖨️ Imprimir</button></div>
+  </body></html>`;
+  const w=window.open('','_blank');w.document.write(html);w.document.close();
+}
+
+// ══ COBRAR DEUDA DESDE FICHA CLIENTE ════════════════
+async function cobrarDeudaCliente(id){
+  const cli=state.clientes.find(c=>String(c._id)===String(id));
+  if(!cli) return;
+  const monto=parseFloat(prompt('¿Cuánto abona '+cli.nombre+'?'));
+  if(!monto||monto<=0){return;}
+  if(!cli.movimientos) cli.movimientos=[];
+  cli.movimientos.push({tipo:'pago',monto,fecha:new Date().toISOString(),desc:'Pago a cuenta'});
+  cli.saldo=(cli.saldo||0)-monto;
+  const {_id,...cliSin}=cli;
+  await dbUpdate('clientes',cli._id,cliSin);
+  toast('Pago registrado ✓');
+  openFicha(id);
+}
+
+// ══ EXPORTAR VENTAS A EXCEL ══════════════════════════
+function exportarVentasExcel(){
+  if(!window.XLSX){toast('Cargando XLSX...');return;}
+  const rows=[['#','Fecha','Cliente','Artículos','Subtotal','Descuento','Total','Forma de pago','Nota']];
+  state.ventas.forEach(v=>{
+    const cli=state.clientes.find(c=>String(c._id)===String(v.clienteId));
+    const items=(v.items||[]).map(i=>i.qty+'x '+i.nombre).join(', ');
+    rows.push([v.nro||'',new Date(v.fecha).toLocaleDateString('es-AR'),cli?cli.nombre:'Sin cliente',items,v.subtotal||0,v.descuento||0,v.total||0,v.formaPago||'',v.nota||'']);
+  });
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:5},{wch:12},{wch:20},{wch:40},{wch:12},{wch:12},{wch:12},{wch:16},{wch:25}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Ventas');
+  XLSX.writeFile(wb,'ventas_mitienda_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.xlsx');
+  toast('Ventas exportadas ✓');
+}
+
+// ══ EXPORTAR ARTÍCULOS A EXCEL ═══════════════════════
+function exportarArticulosExcel(){
+  if(!window.XLSX){toast('Cargando XLSX...');return;}
+  const rows=[['Nombre','Categoría','Precio','Stock','Stock Mínimo']];
+  state.articulos.forEach(a=>{rows.push([a.nombre,a.categoria||'',a.precio||0,a.stock||0,a.stockMin||0]);});
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:30},{wch:15},{wch:12},{wch:10},{wch:14}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Artículos');
+  XLSX.writeFile(wb,'articulos_mitienda_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.xlsx');
+  toast('Artículos exportados ✓');
+}
+
+// ══ RESPALDAR TODOS LOS DATOS (JSON) ════════════════
+function respaldarDatos(){
+  const backup={
+    fecha:new Date().toISOString(),
+    version:1,
+    articulos:state.articulos,
+    clientes:state.clientes,
+    ventas:state.ventas,
+    presupuestos:state.presupuestos,
+    cajasHist:state.cajasHist
+  };
+  const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='respaldo_mitienda_'+new Date().toLocaleDateString('es-AR').replace(/\//g,'-')+'.json';
+  a.click();URL.revokeObjectURL(a.href);
+  toast('Respaldo descargado ✓');
+}
+
 function toggleDarkMode(){
   const dark=document.body.classList.toggle('dark');
   localStorage.setItem('mtb_dark', dark?'1':'0');
@@ -2480,6 +2620,7 @@ function startApp(){
     <!-- ARTICULOS -->
     <div id="sec-articulos" class="section">
       <div class="page-title">Artículos</div>
+      <div id="stock-alerta-banner"></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
         <div class="page-sub" style="margin-bottom:0">Inventario y stock</div>
         <div style="display:flex;gap:6px">
@@ -2602,6 +2743,16 @@ function startApp(){
       </div>
 
       
+      <div class="card" style="margin-top:12px">
+        <div class="card-header"><span class="card-title">📤 Exportar datos</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarVentasExcel()"><i class="ti ti-file-spreadsheet"></i> Ventas Excel</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarArticulosExcel()"><i class="ti ti-package"></i> Artículos Excel</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="respaldarDatos()"><i class="ti ti-download"></i> Respaldar todo (JSON)</button>
+        </div>
+      </div>
       <div class="card" style="margin-top:12px;border-color:#3a1010">
         <div class="card-title" style="margin-bottom:8px;color:var(--text2)">🔑 Cuenta</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Si olvidaste tu contraseña, podés resetear el acceso. <strong style="color:var(--text)">Tus datos no se borran.</strong></div>
@@ -2702,6 +2853,7 @@ function startApp(){
     <div class="form-group"><label>Descuento %</label>
       <input type="number" id="cart-desc" placeholder="0" oninput="renderCartSummary()" min="0" max="100">
     </div>
+    <div class="form-group"><label>Nota (opcional)</label><input id="cart-nota" placeholder="Ej: seña $500, envío incluido..."></div>
     <div id="cart-summary" style="background:var(--bg3);border-radius:10px;padding:14px;margin:8px 0"></div>
     <div class="divider"></div>
     <div class="form-group">
