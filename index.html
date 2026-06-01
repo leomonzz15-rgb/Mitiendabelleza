@@ -942,6 +942,7 @@ function openCliModal(cli=null){
   document.getElementById('cli-nombre').value=cli?.nombre||'';
   document.getElementById('cli-tel').value=cli?.telefono||'';
   document.getElementById('cli-dir').value=cli?.direccion||'';
+  document.getElementById('cli-dir2').value=cli?.direccion2||'';
   document.getElementById('cli-extra').value=cli?.extra||'';
   const cgeo=document.getElementById('cli-direccion-geo');
   const clat=document.getElementById('cli-lat');
@@ -961,6 +962,7 @@ async function saveCliente(){
   const nombre=document.getElementById('cli-nombre').value.trim();
   const telefono=document.getElementById('cli-tel').value.trim();
   const direccion=document.getElementById('cli-dir').value.trim();
+  const direccion2=document.getElementById('cli-dir2').value.trim();
   const extra=document.getElementById('cli-extra').value.trim();
   if(!nombre){toast('Ingresá un nombre');return;}
   if(state.editCliId){
@@ -972,7 +974,7 @@ async function saveCliente(){
     const lat=latEl&&latEl.value?latEl.value:existing.lat||'';
     const lng=lngEl&&lngEl.value?lngEl.value:existing.lng||'';
     if(dirGeo&&dirGeo.value&&!direccion) direccion=dirGeo.value;
-    const obj={...existing,nombre,telefono,direccion,extra,lat,lng};
+    const obj={...existing,nombre,telefono,direccion,direccion2,extra,lat,lng};
     await dbUpdate('clientes',state.editCliId,obj);
     const idx=state.clientes.findIndex(c=>String(c._id)===String(state.editCliId));
     if(idx>=0) state.clientes[idx]=obj;
@@ -987,7 +989,7 @@ async function saveCliente(){
     const lat=latEl?latEl.value:'';
     const lng=lngEl?lngEl.value:'';
     if(dirGeo&&dirGeo.value&&!direccion) direccion=dirGeo.value;
-    const obj={nombre,telefono,direccion,extra,saldo:0,movimientos:[],lat,lng};
+    const obj={nombre,telefono,direccion,direccion2,extra,saldo:0,movimientos:[],lat,lng};
     const saved=await dbInsert('clientes',obj);
     if(saved) state.clientes.push(saved);
     closeModal('modal-cli');renderClientes();
@@ -1618,9 +1620,15 @@ function verDireccionEnMaps(){
   const url=`https://www.google.com/maps/search/${encodeURIComponent(dir+', Argentina')}`;
   window.open(url,'_blank');
 }
+function verDireccionEnMaps2(){
+  const dir=document.getElementById('cli-dir2').value.trim();
+  if(!dir){toast('Primero escribí la dirección secundaria');return;}
+  const url=`https://www.google.com/maps/search/${encodeURIComponent(dir+', Argentina')}`;
+  window.open(url,'_blank');
+}
 
 function renderMapaClientes(){
-  const conDir=state.clientes.filter(c=>c.direccion&&c.direccion.trim());
+  const conDir=state.clientes.filter(c=>(c.direccion&&c.direccion.trim())||(c.direccion2&&c.direccion2.trim()));
   const list=document.getElementById('mapa-clientes-list');
   if(!list) return;
   if(!conDir.length){
@@ -1628,16 +1636,24 @@ function renderMapaClientes(){
     return;
   }
   list.innerHTML=conDir.map(c=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-      <div style="width:32px;height:32px;border-radius:50%;background:var(--rose4);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📍</div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600">${c.nombre}</div>
-        <div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.direccion}</div>
-      </div>
-      <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.direccion+', Argentina')}&travelmode=driving"
-        target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;flex-shrink:0">
-        <i class="ti ti-navigation"></i> Navegar
-      </a>
+    <div style="padding:12px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:14px;font-weight:700;margin-bottom:8px">${c.nombre}</div>
+      ${c.direccion?`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:12px;color:var(--text2);flex:1"><i class="ti ti-home" style="font-size:11px"></i> ${c.direccion}</span>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.direccion+', Argentina')}&travelmode=driving"
+          target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:12px;padding:6px 12px;flex-shrink:0">
+          <i class="ti ti-navigation"></i> Navegar
+        </a>
+      </div>`:''}
+      ${c.direccion2?`
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:12px;color:var(--text2);flex:1"><i class="ti ti-home-2" style="font-size:11px"></i> ${c.direccion2}</span>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.direccion2+', Argentina')}&travelmode=driving"
+          target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;font-size:12px;padding:6px 12px;flex-shrink:0">
+          <i class="ti ti-navigation"></i> Navegar
+        </a>
+      </div>`:''}
     </div>`).join('');
 }
 
@@ -1876,7 +1892,21 @@ function openEnvioModal(){
   document.getElementById('envio-dir').value='';
   document.getElementById('envio-fecha').value=new Date().toISOString().split('T')[0];
   document.getElementById('envio-nota').value='';
+  document.getElementById('envio-dir-opciones').style.display='none';
+  document.getElementById('envio-dir-btns').innerHTML='';
   openModal('modal-envio');
+}
+function onEnvioCliChange(){
+  const id=document.getElementById('envio-cli').value;
+  const cli=state.clientes.find(c=>String(c._id)===String(id));
+  const opcDiv=document.getElementById('envio-dir-opciones');
+  const btnsDiv=document.getElementById('envio-dir-btns');
+  if(!cli||(!cli.direccion&&!cli.direccion2)){opcDiv.style.display='none';return;}
+  let btns='';
+  if(cli.direccion) btns+=`<button type="button" class="btn btn-secondary btn-sm" style="text-align:left;justify-content:flex-start" onclick="document.getElementById('envio-dir').value='${cli.direccion.replace(/'/g,"\'")}';toast('Dirección cargada ✓')"><i class="ti ti-home"></i> ${cli.direccion}</button>`;
+  if(cli.direccion2) btns+=`<button type="button" class="btn btn-secondary btn-sm" style="text-align:left;justify-content:flex-start;margin-top:4px" onclick="document.getElementById('envio-dir').value='${cli.direccion2.replace(/'/g,"\'")}';toast('Dirección cargada ✓')"><i class="ti ti-home-2"></i> ${cli.direccion2}</button>`;
+  btnsDiv.innerHTML=btns;
+  opcDiv.style.display='block';
 }
 async function saveEnvio(){
   const obj={
@@ -1914,7 +1944,7 @@ function renderAgenda(){
         <div>
           <div style="font-size:13px;font-weight:700${isToday?';color:var(--rose2)':''}">${isToday?'HOY · ':''}${env.fecha}</div>
           <div style="font-size:14px;font-weight:600;margin-top:2px">${cli?cli.nombre:'Sin cliente'}</div>
-          <div style="font-size:12px;color:var(--text2)">📍 ${env.direccion}</div>
+          ${(env.direccion||cli?.direccion)?`<div style="font-size:12px;color:var(--text2)">📍 ${env.direccion||cli?.direccion}</div>`:''}
           ${env.nota?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${env.nota}</div>`:''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;flex-direction:column;align-items:flex-end">
@@ -1923,7 +1953,7 @@ function renderAgenda(){
             <button class="btn ${env.completado?'btn-secondary':'btn-primary'} btn-icon btn-sm" onclick="toggleEnvio('${env._id}')"><i class="ti ti-check"></i></button>
             <button class="btn btn-danger btn-icon btn-sm" onclick="deleteEnvio('${env._id}')"><i class="ti ti-trash"></i></button>
           </div>
-          ${env.direccion?`<a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent((env.direccion||cli?.direccion||'')+', Argentina')}&travelmode=driving" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px"><i class="ti ti-navigation"></i> Navegar</a>`:''}
+          ${(env.direccion||cli?.direccion)?`<a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent((env.direccion||cli?.direccion||'')+', Argentina')}&travelmode=driving" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:13px;padding:8px 16px"><i class="ti ti-navigation"></i> Navegar</a>`:''}
         </div>
       </div>
     </div>`;
@@ -3295,12 +3325,18 @@ function startApp(){
     <div class="form-group"><label>Nombre completo</label><input id="cli-nombre" placeholder="Ej: Ana García"></div>
     <div class="form-group"><label>Teléfono / WhatsApp</label><input id="cli-tel" placeholder="+54 9..."></div>
     <div class="form-group">
-      <label>Dirección</label>
+      <label>Dirección principal</label>
       <div style="display:flex;gap:8px">
         <input id="cli-dir" placeholder="Ej: Av. Rivadavia 1234, Buenos Aires" style="flex:1">
         <button type="button" class="btn btn-secondary btn-sm" onclick="verDireccionEnMaps()" style="flex-shrink:0"><i class="ti ti-map-pin"></i> Ver</button>
       </div>
-      <div style="font-size:11px;color:var(--text2);margin-top:4px">Escribí la dirección y tocá "Ver" para confirmar en Maps</div>
+    </div>
+    <div class="form-group">
+      <label>Dirección secundaria <span style="font-size:11px;color:var(--text3)">(casa de la mamá, trabajo, etc.)</span></label>
+      <div style="display:flex;gap:8px">
+        <input id="cli-dir2" placeholder="Ej: San Martín 456" style="flex:1">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="verDireccionEnMaps2()" style="flex-shrink:0"><i class="ti ti-map-pin"></i> Ver</button>
+      </div>
     </div>
     <div class="form-group"><label>Dato extra</label><input id="cli-extra" placeholder="Ej: horario, notas..."></div>
     <input type="hidden" id="cli-lat">
@@ -3419,8 +3455,12 @@ function startApp(){
 <div class="modal-bg" id="modal-envio">
   <div class="modal">
     <div class="modal-title">Nuevo Envío</div>
-    <div class="form-group"><label>Cliente</label><select id="envio-cli"><option value="">Seleccionar...</option></select></div>
-    <div class="form-group"><label>Dirección</label><input id="envio-dir" placeholder="Calle y número"></div>
+    <div class="form-group"><label>Cliente</label><select id="envio-cli" onchange="onEnvioCliChange()"><option value="">Seleccionar...</option></select></div>
+    <div class="form-group" id="envio-dir-opciones" style="display:none">
+      <label>Dirección del cliente</label>
+      <div id="envio-dir-btns" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div class="form-group"><label>Otra dirección <span style="font-size:11px;color:var(--text3)">(opcional)</span></label><input id="envio-dir" placeholder="O escribí una dirección distinta"></div>
     <div class="form-group"><label>Fecha</label><input id="envio-fecha" type="date"></div>
     <div class="form-group"><label>Nota</label><input id="envio-nota" placeholder="Ej: llamar antes..."></div>
     <div style="display:flex;gap:8px;margin-top:4px">
