@@ -48,6 +48,7 @@
   window._fbOnAuthStateChanged = onAuthStateChanged;
 
   // Listen for auth state - auto login if session exists
+  let _appStarted = false;
   onAuthStateChanged(auth, async (user) => {
     if(user){
       // Get user role from Firestore
@@ -70,11 +71,18 @@
       } catch(e) {
         window._currentUser = { uid: user.uid, email: user.email, nombre: user.email.split('@')[0], rol: 'usuario', activo: true };
       }
-      if(window._fbReady){ startApp(); }
-      else { window._fbOnReady = startApp; }
+      // Only start app once, don't restart if already running
+      if(!_appStarted){
+        _appStarted = true;
+        if(window._fbReady){ startApp(); }
+        else { window._fbOnReady = startApp; }
+      }
     } else {
       window._currentUser = null;
-      if(document.getElementById('app')){
+      _appStarted = false;
+      if(document.getElementById('app') && document.getElementById('app').style.display !== 'none'){
+        showLoginScreen();
+      } else if(document.getElementById('app')){
         showLoginScreen();
       }
     }
@@ -403,7 +411,7 @@ function goTo(sec,btn){
   (btn||document.getElementById('nav-'+sec)).classList.add('active');
   if(sec==='caja') renderCajaDiaria();
   if(sec==='presupuesto'){renderPresupuestosGuardados();populatePresuCliSelect();}
-  if(sec==='mas'){renderAgenda();renderReportes();renderAdminPanel();}
+  if(sec==='mas'){renderAgenda();renderReportes();renderAdminPanel();renderMapaClientes();}
 }
 
 
@@ -935,6 +943,14 @@ function openCliModal(cli=null){
   document.getElementById('cli-tel').value=cli?.telefono||'';
   document.getElementById('cli-dir').value=cli?.direccion||'';
   document.getElementById('cli-extra').value=cli?.extra||'';
+  const cgeo=document.getElementById('cli-direccion-geo');
+  const clat=document.getElementById('cli-lat');
+  const clng=document.getElementById('cli-lng');
+  if(cgeo) cgeo.value=cli?.direccion||'';
+  if(clat) clat.value=cli?.lat||'';
+  if(clng) clng.value=cli?.lng||'';
+  const gst=document.getElementById('geo-status');
+  if(gst) gst.textContent=cli?.lat?'✓ Ubicación guardada':'';
   openModal('modal-cli');
 }
 function editClienteById(id){
@@ -950,7 +966,13 @@ async function saveCliente(){
   if(state.editCliId){
     const existing=state.clientes.find(c=>String(c._id)===String(state.editCliId));
     if(!existing) return;
-    const obj={...existing,nombre,telefono,direccion,extra};
+    const latEl=document.getElementById('cli-lat');
+    const lngEl=document.getElementById('cli-lng');
+    const dirGeo=document.getElementById('cli-direccion-geo');
+    const lat=latEl&&latEl.value?latEl.value:existing.lat||'';
+    const lng=lngEl&&lngEl.value?lngEl.value:existing.lng||'';
+    if(dirGeo&&dirGeo.value&&!direccion) direccion=dirGeo.value;
+    const obj={...existing,nombre,telefono,direccion,extra,lat,lng};
     await dbUpdate('clientes',state.editCliId,obj);
     const idx=state.clientes.findIndex(c=>String(c._id)===String(state.editCliId));
     if(idx>=0) state.clientes[idx]=obj;
@@ -959,7 +981,13 @@ async function saveCliente(){
   } else {
     const dup=state.clientes.find(c=>c.nombre.toLowerCase()===nombre.toLowerCase());
     if(dup){toast('Ya existe un cliente con ese nombre');return;}
-    const obj={nombre,telefono,direccion,extra,saldo:0,movimientos:[]};
+    const latEl=document.getElementById('cli-lat');
+    const lngEl=document.getElementById('cli-lng');
+    const dirGeo=document.getElementById('cli-direccion-geo');
+    const lat=latEl?latEl.value:'';
+    const lng=lngEl?lngEl.value:'';
+    if(dirGeo&&dirGeo.value&&!direccion) direccion=dirGeo.value;
+    const obj={nombre,telefono,direccion,extra,saldo:0,movimientos:[],lat,lng};
     const saved=await dbInsert('clientes',obj);
     if(saved) state.clientes.push(saved);
     closeModal('modal-cli');renderClientes();
@@ -1016,7 +1044,16 @@ function openFicha(id){
       <div class="stat-card"><div class="stat-val">${saldo>0?'-'+fmt(saldo):saldo<0?'+'+fmt(Math.abs(saldo)):fmt(0)}</div><div class="stat-label">Saldo pendiente</div></div>
       <div class="stat-card"><div class="stat-val">${ventas.length}</div><div class="stat-label">Compras</div></div>
     </div>
-    ${c.direccion?`<div class="card" style="margin-bottom:8px"><i class="ti ti-map-pin" style="color:var(--rose2);margin-right:6px"></i><span style="font-size:13px">${c.direccion}</span></div>`:''}
+    ${(c.direccion||c.lat)?`<div class="card" style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
+        <i class="ti ti-map-pin" style="color:var(--rose2);flex-shrink:0"></i>
+        <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.direccion||'Ubicación guardada'}</span>
+      </div>
+      <a href="${c.lat&&c.lng?`https://www.google.com/maps?q=${c.lat},${c.lng}`:`https://www.google.com/maps/search/${encodeURIComponent(c.direccion+', Argentina')}`}" target="_blank"
+        class="btn btn-primary btn-sm" style="flex-shrink:0;margin-left:8px;text-decoration:none">
+        <i class="ti ti-navigation"></i> Ir
+      </a>
+    </div>`:''}
     ${c.extra?`<div class="card" style="margin-bottom:8px"><i class="ti ti-notes" style="color:var(--text2);margin-right:6px"></i><span style="font-size:13px">${c.extra}</span></div>`:''}
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       ${c.telefono?`<a href="https://wa.me/${c.telefono.replace(/\D/g,'')}" target="_blank" class="btn btn-secondary btn-sm" style="flex:1"><i class="ti ti-brand-whatsapp"></i> WhatsApp</a>`:''}
@@ -1546,6 +1583,84 @@ async function cerrarSesion(){
   localStorage.removeItem('mtb_lastsec');
   location.reload();
 }
+function backupCompleto(){
+  if(!state.articulos.length&&!state.clientes.length&&!state.ventas.length){
+    toast('No hay datos para exportar');return;
+  }
+  const wb=XLSX.utils.book_new();
+  // Sheet 1: Articulos
+  const artData=[['Nombre','Categoría','Precio','Stock','Stock Mínimo']];
+  state.articulos.forEach(a=>artData.push([a.nombre,a.categoria||'',a.precio||0,a.stock||0,a.stockMin||0]));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(artData),'Artículos');
+  // Sheet 2: Clientes
+  const cliData=[['Nombre','Teléfono','Dirección','Extra','Saldo','Lat','Lng']];
+  state.clientes.forEach(c=>cliData.push([c.nombre,c.telefono||'',c.direccion||'',c.extra||'',c.saldo||0,c.lat||'',c.lng||'']));
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(cliData),'Clientes');
+  // Sheet 3: Ventas
+  const ventData=[['Fecha','Nro','Cliente','Items','Total','Forma de Pago']];
+  state.ventas.forEach(v=>{
+    const fecha=new Date(v.fecha).toLocaleDateString('es-AR');
+    const cli=state.clientes.find(c=>String(c._id)===String(v.clienteId));
+    const items=(v.items||[]).map(i=>i.qty+'x '+i.nombre).join(', ');
+    ventData.push([fecha,v.nro||'',cli?cli.nombre:'Sin cliente',items,v.total||0,v.formaPago||'']);
+  });
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(ventData),'Ventas');
+  const fecha=new Date().toLocaleDateString('es-AR').replace(/\//g,'-');
+  XLSX.writeFile(wb,`backup-mitiendabelleza-${fecha}.xlsx`);
+  toast('Backup descargado ✓');
+}
+
+function geolocalizarCliente(){
+  const st=document.getElementById('geo-status');
+  if(!navigator.geolocation){toast('Tu dispositivo no soporta geolocalización');return;}
+  if(st) st.textContent='Obteniendo ubicación...';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    document.getElementById('cli-lat').value=pos.coords.latitude;
+    document.getElementById('cli-lng').value=pos.coords.longitude;
+    if(st) st.textContent=`✓ Ubicación guardada (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
+    // Reverse geocode with nominatim
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`)
+      .then(r=>r.json()).then(d=>{
+        const addr=d.display_name||'';
+        const short=addr.split(',').slice(0,3).join(',');
+        const dirInput=document.getElementById('cli-direccion-geo');
+        if(dirInput&&!dirInput.value) dirInput.value=short;
+        if(st) st.textContent='✓ Ubicación guardada';
+      }).catch(()=>{});
+  },err=>{
+    if(st) st.textContent='No se pudo obtener la ubicación';
+  },{enableHighAccuracy:true,timeout:8000});
+}
+
+function renderMapaClientes(){
+  const conUbi=state.clientes.filter(c=>c.lat&&c.lng);
+  const list=document.getElementById('mapa-clientes-list');
+  const mapDiv=document.getElementById('mapa-container');
+  if(!list||!mapDiv) return;
+  if(!conUbi.length){
+    list.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Ningún cliente tiene ubicación guardada aún.<br>Editá un cliente y tocá "Mi ubicación".</div>';
+    mapDiv.style.display='none';
+    return;
+  }
+  list.innerHTML=conUbi.map(c=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="width:32px;height:32px;border-radius:50%;background:var(--rose4);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📍</div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:600">${c.nombre}</div>
+        <div style="font-size:11px;color:var(--text2)">${c.direccion||c.telefono||''}</div>
+      </div>
+    </div>`).join('');
+  mapDiv.style.display='block';
+  // Use OpenStreetMap iframe for the map
+  const center=conUbi[0];
+  const markers=conUbi.map(c=>`${c.lat},${c.lng},${encodeURIComponent(c.nombre)}`).join('|');
+  mapDiv.innerHTML=`<iframe
+    src="https://www.openstreetmap.org/export/embed.html?bbox=${Number(center.lng)-0.05},${Number(center.lat)-0.05},${Number(center.lng)+0.05},${Number(center.lat)+0.05}&layer=mapnik&marker=${center.lat},${center.lng}"
+    style="width:100%;height:320px;border:none;border-radius:12px"
+    loading="lazy"></iframe>
+    <div style="font-size:11px;color:var(--text2);text-align:center;margin-top:4px">${conUbi.length} cliente(s) con ubicación</div>`;
+}
+
 function resetearCuenta(){
   toast('Para cambiar contraseña, cerrá sesión y usá "¿Olvidé mi contraseña?" si lo agregamos.');
 }
@@ -1822,10 +1937,13 @@ function renderAgenda(){
           <div style="font-size:12px;color:var(--text2)">📍 ${env.direccion}</div>
           ${env.nota?`<div style="font-size:11px;color:var(--text3);margin-top:2px">${env.nota}</div>`:''}
         </div>
-        <div style="display:flex;gap:6px;flex-shrink:0">
-          ${cli?.telefono?`<a href="https://wa.me/${cli.telefono.replace(/\D/g,'')}" target="_blank" class="btn btn-secondary btn-icon btn-sm"><i class="ti ti-brand-whatsapp"></i></a>`:''}
-          <button class="btn ${env.completado?'btn-secondary':'btn-primary'} btn-icon btn-sm" onclick="toggleEnvio('${env._id}')"><i class="ti ti-check"></i></button>
-          <button class="btn btn-danger btn-icon btn-sm" onclick="deleteEnvio('${env._id}')"><i class="ti ti-trash"></i></button>
+        <div style="display:flex;gap:6px;flex-shrink:0;flex-direction:column;align-items:flex-end">
+          <div style="display:flex;gap:6px">
+            ${cli?.telefono?`<a href="https://wa.me/${cli.telefono.replace(/\D/g,'')}" target="_blank" class="btn btn-secondary btn-icon btn-sm"><i class="ti ti-brand-whatsapp"></i></a>`:''}
+            <button class="btn ${env.completado?'btn-secondary':'btn-primary'} btn-icon btn-sm" onclick="toggleEnvio('${env._id}')"><i class="ti ti-check"></i></button>
+            <button class="btn btn-danger btn-icon btn-sm" onclick="deleteEnvio('${env._id}')"><i class="ti ti-trash"></i></button>
+          </div>
+          ${env.direccion?`<a href="${cli?.lat&&cli?.lng?`https://www.google.com/maps?q=${cli.lat},${cli.lng}`:`https://www.google.com/maps/search/${encodeURIComponent((env.direccion||cli?.direccion||'')+', Argentina')}`}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px"><i class="ti ti-navigation"></i> Abrir Maps</a>`:''}
         </div>
       </div>
     </div>`;
@@ -1929,17 +2047,44 @@ function loginFaceUncover(){
   if(ms) ms.style.display='none';
 }
 function loginFaceWatch(){
-  // Eyes follow the nombre input - wiggle pupils
-  const nombre=document.getElementById('login-nombre');
-  if(!nombre) return;
-  const len=nombre.value.length;
+  const input=document.getElementById('login-nombre');
+  if(!input) return;
   const pl=document.getElementById('pupil-left');
   const pr=document.getElementById('pupil-right');
   if(!pl||!pr) return;
-  // Move pupils slightly right as text grows, max offset ±4
-  const offset=Math.min(len*0.4,4);
-  pl.setAttribute('cx', 38+offset);
-  pr.setAttribute('cx', 72+offset);
+
+  const len=input.value.length;
+  const maxLen=30;
+  // Map text length to horizontal position: empty=left, full=right
+  const progress=Math.min(len/maxLen,1);
+  // Eyes sweep left to right as text grows, range -3.5 to +3.5
+  const ox=(progress*2-1)*3.5;
+  // Slight downward tilt looking at the input
+  const oy=2.5;
+
+  // Animate smoothly
+  [pl,pr].forEach(p=>{
+    p.style.transition='all 0.12s cubic-bezier(.25,.46,.45,.94)';
+  });
+  pl.setAttribute('cx', 42+ox);
+  pl.setAttribute('cy', 59+oy);
+  pr.setAttribute('cx', 88+ox);
+  pr.setAttribute('cy', 59+oy);
+
+  // Blink quickly every 4 chars typed
+  if(len>0 && len%4===0) loginBlink();
+}
+
+function loginBlink(){
+  const eo=document.getElementById('eyes-open');
+  if(!eo) return;
+  eo.style.transform='scaleY(0.1)';
+  eo.style.transformOrigin='65px 59px';
+  eo.style.transition='transform 0.07s ease';
+  setTimeout(()=>{
+    eo.style.transform='scaleY(1)';
+    eo.style.transition='transform 0.1s ease';
+  },100);
 }
 
 
@@ -2725,44 +2870,136 @@ function startApp(){
   <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle at 80% 20%,rgba(244,114,182,.12) 0%,transparent 50%),radial-gradient(circle at 20% 80%,rgba(212,35,122,.08) 0%,transparent 50%);pointer-events:none"></div>
   <div style="width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1">
 
-    <!-- Animated eye character -->
-    <div style="margin-bottom:20px;position:relative;width:110px;height:110px">
-      <svg id="login-face" viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg" style="width:110px;height:110px">
-        <!-- Face -->
-        <circle cx="55" cy="55" r="50" fill="#fce7f3" stroke="#f0d6e4" stroke-width="2"/>
-        <!-- Blush -->
-        <ellipse cx="30" cy="70" rx="10" ry="6" fill="#f9a8d4" opacity="0.5"/>
-        <ellipse cx="80" cy="70" rx="10" ry="6" fill="#f9a8d4" opacity="0.5"/>
+    <!-- Animated face -->
+    <div style="margin-bottom:16px;position:relative;width:130px;height:130px;filter:drop-shadow(0 8px 24px rgba(232,64,154,.2))">
+      <svg id="login-face" viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg" style="width:130px;height:130px">
+        <defs>
+          <radialGradient id="faceGrad" cx="45%" cy="35%" r="60%">
+            <stop offset="0%" stop-color="#fff0f7"/>
+            <stop offset="100%" stop-color="#fce7f3"/>
+          </radialGradient>
+          <radialGradient id="pupilGrad" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#5c2d4e"/>
+            <stop offset="100%" stop-color="#1a0a14"/>
+          </radialGradient>
+          <radialGradient id="irisGrad" cx="40%" cy="30%" r="65%">
+            <stop offset="0%" stop-color="#c0306e"/>
+            <stop offset="100%" stop-color="#831843"/>
+          </radialGradient>
+          <filter id="softBlur">
+            <feGaussianBlur stdDeviation="1.2"/>
+          </filter>
+        </defs>
+
+        <!-- Shadow under face -->
+        <ellipse cx="65" cy="122" rx="42" ry="6" fill="#e8409a" opacity="0.12"/>
+
+        <!-- Face base -->
+        <circle cx="65" cy="63" r="56" fill="url(#faceGrad)" stroke="#f9c0d8" stroke-width="1.5"/>
+
+        <!-- Hair top -->
+        <path d="M 18 55 Q 20 10 65 8 Q 110 10 112 55" fill="#2d1f28" stroke="none"/>
+        <!-- Hair highlights -->
+        <path d="M 30 40 Q 40 20 65 16" stroke="#6b3a52" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6"/>
+        <path d="M 45 16 Q 65 10 82 18" stroke="#6b3a52" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.4"/>
+
+        <!-- Ear left -->
+        <ellipse cx="10" cy="65" rx="7" ry="9" fill="#fce7f3" stroke="#f9c0d8" stroke-width="1"/>
+        <ellipse cx="10" cy="65" rx="4" ry="5.5" fill="#f9a8d4" opacity="0.5"/>
+        <!-- Ear right -->
+        <ellipse cx="120" cy="65" rx="7" ry="9" fill="#fce7f3" stroke="#f9c0d8" stroke-width="1"/>
+        <ellipse cx="120" cy="65" rx="4" ry="5.5" fill="#f9a8d4" opacity="0.5"/>
+
+        <!-- Eyebrows -->
+        <path d="M 32 45 Q 44 40 52 43" stroke="#2d1f28" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M 78 43 Q 86 40 98 45" stroke="#2d1f28" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
         <!-- Eyes open group -->
         <g id="eyes-open">
           <!-- Left eye white -->
-          <ellipse cx="38" cy="48" rx="11" ry="12" fill="white" stroke="#f0d6e4" stroke-width="1"/>
-          <!-- Right eye white -->
-          <ellipse cx="72" cy="48" rx="11" ry="12" fill="white" stroke="#f0d6e4" stroke-width="1"/>
+          <ellipse cx="42" cy="58" rx="13" ry="14" fill="white" stroke="#f0c0d0" stroke-width="1"/>
+          <!-- Left iris -->
+          <circle cx="42" cy="59" r="8" fill="url(#irisGrad)"/>
           <!-- Left pupil -->
-          <circle id="pupil-left" cx="38" cy="49" r="5" fill="#2d1f28"/>
-          <circle cx="40" cy="47" r="1.5" fill="white"/>
+          <circle id="pupil-left" cx="42" cy="59" r="5" fill="url(#pupilGrad)"/>
+          <!-- Left shine big -->
+          <circle cx="45" cy="56" r="2.5" fill="white" opacity="0.9"/>
+          <!-- Left shine small -->
+          <circle cx="39" cy="61" r="1.2" fill="white" opacity="0.5"/>
+          <!-- Left lashes top -->
+          <path d="M 30 50 Q 34 47 38 49" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 36 47 Q 40 44 44 47" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 44 47 Q 48 45 51 48" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+          <!-- Right eye white -->
+          <ellipse cx="88" cy="58" rx="13" ry="14" fill="white" stroke="#f0c0d0" stroke-width="1"/>
+          <!-- Right iris -->
+          <circle cx="88" cy="59" r="8" fill="url(#irisGrad)"/>
           <!-- Right pupil -->
-          <circle id="pupil-right" cx="72" cy="49" r="5" fill="#2d1f28"/>
-          <circle cx="74" cy="47" r="1.5" fill="white"/>
+          <circle id="pupil-right" cx="88" cy="59" r="5" fill="url(#pupilGrad)"/>
+          <!-- Right shine big -->
+          <circle cx="91" cy="56" r="2.5" fill="white" opacity="0.9"/>
+          <!-- Right shine small -->
+          <circle cx="85" cy="61" r="1.2" fill="white" opacity="0.5"/>
+          <!-- Right lashes top -->
+          <path d="M 76 50 Q 80 47 84 49" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 82 47 Q 86 44 90 47" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 90 47 Q 94 45 97 48" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
         </g>
+
         <!-- Eyes covered group (hidden by default) -->
         <g id="eyes-covered" style="display:none">
-          <!-- Hands covering eyes -->
-          <rect x="18" y="38" width="32" height="22" rx="11" fill="#f9a8d4" stroke="#e879a0" stroke-width="1.5"/>
-          <rect x="60" y="38" width="32" height="22" rx="11" fill="#f9a8d4" stroke="#e879a0" stroke-width="1.5"/>
-          <!-- Fingers lines -->
-          <line x1="26" y1="38" x2="26" y2="60" stroke="#e879a0" stroke-width="1" opacity="0.6"/>
-          <line x1="34" y1="38" x2="34" y2="60" stroke="#e879a0" stroke-width="1" opacity="0.6"/>
-          <line x1="42" y1="38" x2="42" y2="60" stroke="#e879a0" stroke-width="1" opacity="0.6"/>
-          <line x1="68" y1="38" x2="68" y2="60" stroke="#e879a0" stroke-width="1" opacity="0.6"/>
-          <line x1="76" y1="38" x2="76" y2="60" stroke="#e879a0" stroke-width="1" opacity="0.6"/>
-          <line x1="84" y1="38" x2="84" y2="60" stroke="#e879a0" stroke-width="1" opacity="0.6"/>
+          <!-- Left hand -->
+          <rect x="14" y="46" width="38" height="26" rx="13" fill="#fbb6ce" stroke="#e879a0" stroke-width="1.5"/>
+          <rect x="14" y="46" width="38" height="12" rx="8" fill="#f9a8d4"/>
+          <!-- Left finger lines -->
+          <line x1="24" y1="46" x2="24" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <line x1="33" y1="44" x2="33" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <line x1="42" y1="44" x2="42" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <!-- Left nails -->
+          <rect x="16" y="44" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="26" y="42" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="36" y="42" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="44" y="44" width="7" height="7" rx="3.5" fill="#e8409a"/>
+
+          <!-- Right hand -->
+          <rect x="78" y="46" width="38" height="26" rx="13" fill="#fbb6ce" stroke="#e879a0" stroke-width="1.5"/>
+          <rect x="78" y="46" width="38" height="12" rx="8" fill="#f9a8d4"/>
+          <!-- Right finger lines -->
+          <line x1="88" y1="46" x2="88" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <line x1="97" y1="44" x2="97" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <line x1="106" y1="44" x2="106" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <!-- Right nails -->
+          <rect x="79" y="44" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="89" y="42" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="99" y="42" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="108" y="44" width="7" height="7" rx="3.5" fill="#e8409a"/>
         </g>
+
+        <!-- Nose -->
+        <path d="M 62 68 Q 60 76 63 78 Q 67 80 70 78 Q 73 76 71 68" stroke="#e8a0b8" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
+        <!-- Blush -->
+        <ellipse cx="28" cy="78" rx="12" ry="7" fill="#f9a8d4" opacity="0.35" filter="url(#softBlur)"/>
+        <ellipse cx="102" cy="78" rx="12" ry="7" fill="#f9a8d4" opacity="0.35" filter="url(#softBlur)"/>
+
         <!-- Mouth happy -->
-        <path id="mouth-happy" d="M 42 75 Q 55 85 68 75" stroke="#e8409a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path id="mouth-happy" d="M 46 90 Q 55 100 74 90" stroke="#e8409a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path id="mouth-happy2" d="M 46 90 Q 55 94 74 90" stroke="#fce7f3" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.6"/>
+
         <!-- Mouth shy (hidden) -->
-        <path id="mouth-shy" d="M 44 78 Q 55 74 66 78" stroke="#e8409a" stroke-width="2.5" fill="none" stroke-linecap="round" style="display:none"/>
+        <path id="mouth-shy" d="M 49 92 Q 55 88 71 92" stroke="#e8409a" stroke-width="2.5" fill="none" stroke-linecap="round" style="display:none"/>
+
+        <!-- Small heart accessory -->
+        <path d="M 98 28 C 98 26 96 24 94 26 C 92 24 90 26 90 28 C 90 31 94 34 94 34 C 94 34 98 31 98 28 Z" fill="#e8409a" opacity="0.7"/>
+
+        <!-- Sparkle top left -->
+        <g opacity="0.6" transform="translate(20,22)">
+          <line x1="0" y1="-6" x2="0" y2="6" stroke="#f472b6" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="-6" y1="0" x2="6" y2="0" stroke="#f472b6" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="-4" y1="-4" x2="4" y2="4" stroke="#f472b6" stroke-width="0.8" stroke-linecap="round"/>
+          <line x1="4" y1="-4" x2="-4" y2="4" stroke="#f472b6" stroke-width="0.8" stroke-linecap="round"/>
+        </g>
       </svg>
     </div>
 
@@ -2973,14 +3210,21 @@ function startApp(){
 
       
       <div class="card" style="margin-top:12px">
-        <div class="card-header"><span class="card-title">📤 Exportar datos</span></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarVentasExcel()"><i class="ti ti-file-spreadsheet"></i> Ventas Excel</button>
-          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarArticulosExcel()"><i class="ti ti-package"></i> Artículos Excel</button>
+        <div class="card-header"><span class="card-title">💾 Backup y exportar</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarVentasExcel()"><i class="ti ti-file-spreadsheet"></i> Ventas</button>
+          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="exportarArticulosExcel()"><i class="ti ti-package"></i> Artículos</button>
         </div>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button class="btn btn-secondary btn-sm" style="flex:1" onclick="respaldarDatos()"><i class="ti ti-download"></i> Respaldar todo (JSON)</button>
+        <button class="btn btn-primary btn-full btn-sm" onclick="backupCompleto()"><i class="ti ti-database-export"></i> Backup completo (Excel)</button>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px;text-align:center">Descarga un Excel con artículos, clientes y ventas</div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div class="card-header">
+          <span class="card-title">🗺️ Mapa de clientes</span>
         </div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px">Clientes con ubicación guardada</div>
+        <div id="mapa-clientes-list"></div>
+        <div id="mapa-container" style="width:100%;height:320px;border-radius:12px;overflow:hidden;margin-top:8px;display:none"></div>
       </div>
       <div class="card" style="margin-top:12px;border-color:#3a1010">
         <div class="card-title" style="margin-bottom:8px;color:var(--text2)">🔑 Cuenta</div>
@@ -3073,6 +3317,16 @@ function startApp(){
     <div class="form-group"><label>Teléfono / WhatsApp</label><input id="cli-tel" placeholder="+54 9..."></div>
     <div class="form-group"><label>Dirección (calle y número)</label><input id="cli-dir" placeholder="Ej: Av. Rivadavia 1234"></div>
     <div class="form-group"><label>Dato extra</label><input id="cli-extra" placeholder="Ej: horario, notas..."></div>
+    <div class="form-group">
+      <label>Ubicación</label>
+      <div style="display:flex;gap:8px">
+        <input id="cli-direccion-geo" placeholder="Dirección o barrio..." style="flex:1">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="geolocalizarCliente()" style="flex-shrink:0"><i class="ti ti-current-location"></i> Mi ubic.</button>
+      </div>
+      <input type="hidden" id="cli-lat">
+      <input type="hidden" id="cli-lng">
+      <div id="geo-status" style="font-size:11px;color:var(--text2);margin-top:4px"></div>
+    </div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-secondary btn-full" onclick="closeModal('modal-cli')">Cancelar</button>
       <button class="btn btn-primary btn-full" onclick="saveCliente()">Guardar</button>
