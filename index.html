@@ -1620,32 +1620,25 @@ function verDireccionEnMaps(){
 }
 
 function renderMapaClientes(){
-  const conUbi=state.clientes.filter(c=>c.lat&&c.lng);
+  const conDir=state.clientes.filter(c=>c.direccion&&c.direccion.trim());
   const list=document.getElementById('mapa-clientes-list');
-  const mapDiv=document.getElementById('mapa-container');
-  if(!list||!mapDiv) return;
-  if(!conUbi.length){
-    list.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Ningún cliente tiene ubicación guardada aún.<br>Editá un cliente y tocá "Mi ubicación".</div>';
-    mapDiv.style.display='none';
+  if(!list) return;
+  if(!conDir.length){
+    list.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Ningún cliente tiene dirección guardada aún.<br>Editá un cliente y escribí la dirección.</div>';
     return;
   }
-  list.innerHTML=conUbi.map(c=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+  list.innerHTML=conDir.map(c=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
       <div style="width:32px;height:32px;border-radius:50%;background:var(--rose4);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📍</div>
-      <div style="flex:1">
+      <div style="flex:1;min-width:0">
         <div style="font-size:13px;font-weight:600">${c.nombre}</div>
-        <div style="font-size:11px;color:var(--text2)">${c.direccion||c.telefono||''}</div>
+        <div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.direccion}</div>
       </div>
+      <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.direccion+', Argentina')}&travelmode=driving"
+        target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;flex-shrink:0">
+        <i class="ti ti-navigation"></i> Navegar
+      </a>
     </div>`).join('');
-  mapDiv.style.display='block';
-  // Use OpenStreetMap iframe for the map
-  const center=conUbi[0];
-  const markers=conUbi.map(c=>`${c.lat},${c.lng},${encodeURIComponent(c.nombre)}`).join('|');
-  mapDiv.innerHTML=`<iframe
-    src="https://www.openstreetmap.org/export/embed.html?bbox=${Number(center.lng)-0.05},${Number(center.lat)-0.05},${Number(center.lng)+0.05},${Number(center.lat)+0.05}&layer=mapnik&marker=${center.lat},${center.lng}"
-    style="width:100%;height:320px;border:none;border-radius:12px"
-    loading="lazy"></iframe>
-    <div style="font-size:11px;color:var(--text2);text-align:center;margin-top:4px">${conUbi.length} cliente(s) con ubicación</div>`;
 }
 
 function resetearCuenta(){
@@ -3207,11 +3200,10 @@ function startApp(){
       </div>
       <div class="card" style="margin-top:12px">
         <div class="card-header">
-          <span class="card-title">🗺️ Mapa de clientes</span>
+          <span class="card-title">📍 Direcciones de clientes</span>
         </div>
-        <div style="font-size:13px;color:var(--text2);margin-bottom:10px">Clientes con ubicación guardada</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:10px">Todos los clientes con dirección guardada</div>
         <div id="mapa-clientes-list"></div>
-        <div id="mapa-container" style="width:100%;height:320px;border-radius:12px;overflow:hidden;margin-top:8px;display:none"></div>
       </div>
       <div class="card" style="margin-top:12px;border-color:#3a1010">
         <div class="card-title" style="margin-bottom:8px;color:var(--text2)">🔑 Cuenta</div>
