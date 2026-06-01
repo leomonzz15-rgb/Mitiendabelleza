@@ -1049,9 +1049,9 @@ function openFicha(id){
         <i class="ti ti-map-pin" style="color:var(--rose2);flex-shrink:0"></i>
         <span style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.direccion||'Ubicación guardada'}</span>
       </div>
-      <a href="${c.lat&&c.lng?`https://www.google.com/maps?q=${c.lat},${c.lng}`:`https://www.google.com/maps/search/${encodeURIComponent(c.direccion+', Argentina')}`}" target="_blank"
+      <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent((c.direccion||'')+', Argentina')}&travelmode=driving" target="_blank"
         class="btn btn-primary btn-sm" style="flex-shrink:0;margin-left:8px;text-decoration:none">
-        <i class="ti ti-navigation"></i> Ir
+        <i class="ti ti-navigation"></i> Navegar
       </a>
     </div>`:''}
     ${c.extra?`<div class="card" style="margin-bottom:8px"><i class="ti ti-notes" style="color:var(--text2);margin-right:6px"></i><span style="font-size:13px">${c.extra}</span></div>`:''}
@@ -1610,26 +1610,13 @@ function backupCompleto(){
   toast('Backup descargado ✓');
 }
 
-function geolocalizarCliente(){
-  const st=document.getElementById('geo-status');
-  if(!navigator.geolocation){toast('Tu dispositivo no soporta geolocalización');return;}
-  if(st) st.textContent='Obteniendo ubicación...';
-  navigator.geolocation.getCurrentPosition(pos=>{
-    document.getElementById('cli-lat').value=pos.coords.latitude;
-    document.getElementById('cli-lng').value=pos.coords.longitude;
-    if(st) st.textContent=`✓ Ubicación guardada (${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)})`;
-    // Reverse geocode with nominatim
-    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`)
-      .then(r=>r.json()).then(d=>{
-        const addr=d.display_name||'';
-        const short=addr.split(',').slice(0,3).join(',');
-        const dirInput=document.getElementById('cli-direccion-geo');
-        if(dirInput&&!dirInput.value) dirInput.value=short;
-        if(st) st.textContent='✓ Ubicación guardada';
-      }).catch(()=>{});
-  },err=>{
-    if(st) st.textContent='No se pudo obtener la ubicación';
-  },{enableHighAccuracy:true,timeout:8000});
+function geolocalizarCliente(){}
+
+function verDireccionEnMaps(){
+  const dir=document.getElementById('cli-dir').value.trim();
+  if(!dir){toast('Primero escribí la dirección');return;}
+  const url=`https://www.google.com/maps/search/${encodeURIComponent(dir+', Argentina')}`;
+  window.open(url,'_blank');
 }
 
 function renderMapaClientes(){
@@ -1943,7 +1930,7 @@ function renderAgenda(){
             <button class="btn ${env.completado?'btn-secondary':'btn-primary'} btn-icon btn-sm" onclick="toggleEnvio('${env._id}')"><i class="ti ti-check"></i></button>
             <button class="btn btn-danger btn-icon btn-sm" onclick="deleteEnvio('${env._id}')"><i class="ti ti-trash"></i></button>
           </div>
-          ${env.direccion?`<a href="${cli?.lat&&cli?.lng?`https://www.google.com/maps?q=${cli.lat},${cli.lng}`:`https://www.google.com/maps/search/${encodeURIComponent((env.direccion||cli?.direccion||'')+', Argentina')}`}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px"><i class="ti ti-navigation"></i> Abrir Maps</a>`:''}
+          ${env.direccion?`<a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent((env.direccion||cli?.direccion||'')+', Argentina')}&travelmode=driving" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:11px"><i class="ti ti-navigation"></i> Navegar</a>`:''}
         </div>
       </div>
     </div>`;
@@ -3315,18 +3302,18 @@ function startApp(){
     <div class="modal-title" id="modal-cli-title">Nueva Cliente</div>
     <div class="form-group"><label>Nombre completo</label><input id="cli-nombre" placeholder="Ej: Ana García"></div>
     <div class="form-group"><label>Teléfono / WhatsApp</label><input id="cli-tel" placeholder="+54 9..."></div>
-    <div class="form-group"><label>Dirección (calle y número)</label><input id="cli-dir" placeholder="Ej: Av. Rivadavia 1234"></div>
-    <div class="form-group"><label>Dato extra</label><input id="cli-extra" placeholder="Ej: horario, notas..."></div>
     <div class="form-group">
-      <label>Ubicación</label>
+      <label>Dirección</label>
       <div style="display:flex;gap:8px">
-        <input id="cli-direccion-geo" placeholder="Dirección o barrio..." style="flex:1">
-        <button type="button" class="btn btn-secondary btn-sm" onclick="geolocalizarCliente()" style="flex-shrink:0"><i class="ti ti-current-location"></i> Mi ubic.</button>
+        <input id="cli-dir" placeholder="Ej: Av. Rivadavia 1234, Buenos Aires" style="flex:1">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="verDireccionEnMaps()" style="flex-shrink:0"><i class="ti ti-map-pin"></i> Ver</button>
       </div>
-      <input type="hidden" id="cli-lat">
-      <input type="hidden" id="cli-lng">
-      <div id="geo-status" style="font-size:11px;color:var(--text2);margin-top:4px"></div>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Escribí la dirección y tocá "Ver" para confirmar en Maps</div>
     </div>
+    <div class="form-group"><label>Dato extra</label><input id="cli-extra" placeholder="Ej: horario, notas..."></div>
+    <input type="hidden" id="cli-lat">
+    <input type="hidden" id="cli-lng">
+    <input type="hidden" id="cli-direccion-geo">
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-secondary btn-full" onclick="closeModal('modal-cli')">Cancelar</button>
       <button class="btn btn-primary btn-full" onclick="saveCliente()">Guardar</button>
