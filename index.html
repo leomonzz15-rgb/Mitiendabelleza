@@ -16,7 +16,8 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD-zs14xbQO-UIsJyP_Z7I1PyI7_Sh1IBU",
@@ -29,18 +30,58 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+  const auth = getAuth(app);
 
   window._fbDb = db;
+  window._fbAuth = auth;
   window._fbCol = collection;
   window._fbGetDocs = getDocs;
   window._fbAddDoc = addDoc;
   window._fbUpdateDoc = updateDoc;
   window._fbDeleteDoc = deleteDoc;
   window._fbDoc = doc;
+  window._fbSetDoc = setDoc;
+  window._fbGetDoc = getDoc;
+  window._fbSignIn = signInWithEmailAndPassword;
+  window._fbCreateUser = createUserWithEmailAndPassword;
+  window._fbSignOut = signOut;
+  window._fbOnAuthStateChanged = onAuthStateChanged;
 
-  // Signal app that Firebase is ready
+  // Listen for auth state - auto login if session exists
+  onAuthStateChanged(auth, async (user) => {
+    if(user){
+      // Get user role from Firestore
+      try {
+        const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
+        const userData = userDoc.exists() ? userDoc.data() : {};
+        window._currentUser = {
+          uid: user.uid,
+          email: user.email,
+          nombre: userData.nombre || user.email.split('@')[0],
+          rol: userData.rol || 'usuario',
+          activo: userData.activo !== false
+        };
+        if(!window._currentUser.activo){
+          await signOut(auth);
+          window._currentUser = null;
+          showLoginScreen('Tu cuenta está desactivada. Contactá al admin.');
+          return;
+        }
+      } catch(e) {
+        window._currentUser = { uid: user.uid, email: user.email, nombre: user.email.split('@')[0], rol: 'usuario', activo: true };
+      }
+      if(window._fbReady){ startApp(); }
+      else { window._fbOnReady = startApp; }
+    } else {
+      window._currentUser = null;
+      if(document.getElementById('app')){
+        showLoginScreen();
+      }
+    }
+  });
+
   window._fbReady = true;
-  if(window._fbOnReady) window._fbOnReady();
+  if(window._fbOnReady && window._currentUser) window._fbOnReady();
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -355,19 +396,20 @@ function toast(msg,dur=2000){
 }
 
 function goTo(sec,btn){
+  localStorage.setItem('mtb_lastsec', sec);
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('sec-'+sec).classList.add('active');
   (btn||document.getElementById('nav-'+sec)).classList.add('active');
   if(sec==='caja') renderCajaDiaria();
   if(sec==='presupuesto'){renderPresupuestosGuardados();populatePresuCliSelect();}
-  if(sec==='mas') renderAgenda(),renderReportes();
+  if(sec==='mas'){renderAgenda();renderReportes();renderAdminPanel();}
 }
 
 
 
-function openModal(id){document.getElementById(id).classList.add('open');}
-function closeModal(id){document.getElementById(id).classList.remove('open');}
+function openModal(id){document.getElementById(id).classList.add('open');document.body.style.overflow='hidden';}
+function closeModal(id){document.getElementById(id).classList.remove('open');document.body.style.overflow='';}
 
 function getDb(){ return window._fbDb; }
 async function dbGet(table){
@@ -431,7 +473,11 @@ function openArtModal(art=null){
   document.getElementById('art-nombre').value=art?.nombre||'';
   document.getElementById('art-cat').value=art?.categoria||'Esmaltes';
   document.getElementById('art-precio').value=art?.precio||'';
-  document.getElementById('art-stock').value=art?.stock||'';
+  const artStockEl=document.getElementById('art-stock');
+  artStockEl.value=art?.stock||'';
+  artStockEl.readOnly=!!art;
+  artStockEl.style.background=art?'var(--bg3)':'';
+  artStockEl.title=art?'Usá el ajuste rápido de stock abajo':'';
   document.getElementById('art-min').value=art?.stockMin||3;
   const ajusteDiv=document.getElementById('art-ajuste-stock');
   if(art){
@@ -756,15 +802,6 @@ async function confirmarVenta(){
       if(art){art.stock=Math.max(0,(art.stock||0)-c.qty);const {_id:aid,...artSinId}=art;await dbUpdate('articulos',art._id,artSinId);}
     }
   }
-  if(cliId&&(formaPago==='cuenta_corriente'||formaPago.includes('cuenta_corriente'))){
-    const cli=state.clientes.find(c=>c._id===cliId);
-    if(cli){
-      cli.saldo=(cli.saldo||0)+total;
-      if(!cli.movimientos) cli.movimientos=[];
-      cli.movimientos.push({tipo:'venta',monto:total,fecha:new Date().toISOString(),desc:'Venta #'+venta.nro});
-      await dbUpdate('clientes',cli._id,cli);
-    }
-  }
   const saved=await dbInsert('ventas',venta);
   if(saved) state.ventas.push(saved);
   state.lastVenta={...venta,_id:saved?._id};
@@ -778,12 +815,20 @@ async function confirmarVenta(){
     }
     state._presuOrigen=null;
   }
-  // Agregar venta a cuenta corriente del cliente (todos los medios de pago, no solo cta cte)
+  // Registrar en cuenta corriente del cliente
   if(cliId){
     const cli=state.clientes.find(c=>c._id===cliId);
-    if(cli&&!(formaPago==='cuenta_corriente'||formaPago.includes('cuenta_corriente'))){
+    if(cli){
       if(!cli.movimientos) cli.movimientos=[];
-      cli.movimientos.push({tipo:'venta',monto:total,fecha:new Date().toISOString(),desc:'Venta #'+venta.nro,formaPago});
+      const esCuentaCte = formaPago==='cuenta_corriente'||formaPago.includes('cuenta_corriente');
+      if(esCuentaCte){
+        // Suma deuda al saldo
+        cli.saldo=(cli.saldo||0)+total;
+        cli.movimientos.push({tipo:'deuda',monto:total,fecha:new Date().toISOString(),desc:'Venta #'+venta.nro+' (Cta. Cte.)',ventaId:saved?._id});
+      } else {
+        // Venta pagada - registrar igualmente en historial pero sin sumar saldo
+        cli.movimientos.push({tipo:'venta',monto:total,fecha:new Date().toISOString(),desc:'Venta #'+venta.nro,formaPago});
+      }
       await dbUpdate('clientes',cli._id,cli);
     }
   }
@@ -929,7 +974,12 @@ async function deleteCliente(id){
 }
 function renderClientes(){
   const q=document.getElementById('cli-search').value.toLowerCase();
-  const list=state.clientes.filter(c=>!q||c.nombre.toLowerCase().includes(q)||c.telefono?.includes(q));
+  const sorted=[...state.clientes].sort((a,b)=>{
+    if(a.nombre==='Consumidor Final') return -1;
+    if(b.nombre==='Consumidor Final') return 1;
+    return a.nombre.localeCompare(b.nombre,'es');
+  });
+  const list=sorted.filter(c=>!q||c.nombre.toLowerCase().includes(q)||c.telefono?.includes(q));
   let html='';
   list.forEach(c=>{
     const saldo=c.saldo||0;
@@ -977,50 +1027,78 @@ function openFicha(id){
     <div style="font-size:13px;font-weight:700;color:var(--text2);margin-bottom:8px">CUENTA CORRIENTE</div>
     ${(()=>{
       const movs=[];
-      ventas.forEach(v=>movs.push({tipo:'venta',fecha:v.fecha,desc:'Venta #'+(v.nro||''),monto:v.total,sub:v.formaPago,id:v._id}));
+      ventas.forEach(v=>movs.push({tipo:v.formaPago==='cuenta_corriente'||v.formaPago?.includes('cuenta_corriente')?'deuda':'venta',fecha:v.fecha,desc:'Venta #'+(v.nro||''),monto:v.total,sub:v.formaPago,id:v._id}));
       const presus=state.presupuestos.filter(p=>p.clienteId===id);
       presus.forEach(p=>movs.push({tipo:p.estado==='convertido'?'presupuesto-conv':'presupuesto',fecha:p.fecha,desc:'Presupuesto',monto:p.total,sub:p.estado==='convertido'?'Convertido en venta':'Pendiente',id:p._id}));
+      // Pagos registrados (cobros de deuda)
+      (c.movimientos||[]).filter(m=>m.tipo==='pago').forEach(m=>movs.push({tipo:'pago',fecha:m.fecha,desc:m.desc||'Pago',monto:m.monto,metodo:m.metodo||'',id:null}));
       movs.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
       if(!movs.length) return '<div style="color:var(--text3);font-size:13px;padding:10px 0">Sin movimientos aún</div>';
-      return movs.map(m=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:9px 0;border-bottom:1px solid var(--border)">
-          <div>
-            <div style="display:flex;align-items:center;gap:6px">
-              <span style="font-size:15px">${m.tipo==='venta'?'🛒':m.tipo==='presupuesto-conv'?'📋✓':'📋'}</span>
-              <span style="font-weight:600">${m.desc}</span>
-              ${m.tipo==='presupuesto-conv'?'<span style="background:rgba(5,150,105,.12);color:var(--green);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">CONV</span>':m.tipo==='presupuesto'?'<span style="background:var(--rose-soft);color:var(--rose);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">PEND</span>':''}
-            </div>
-            <div style="color:var(--text2);font-size:11px;margin-top:1px">${new Date(m.fecha).toLocaleDateString('es-AR')} · ${m.sub}</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <div style="font-weight:800;color:var(--rose)">${fmt(m.monto)}</div>
-            ${m.tipo==='venta'?`<button style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--text2)" onclick="verTicketVenta('`+m.id+`')">🧾</button>`:''}
-          </div>
-        </div>`).join('');
+      return movs.map(m=>{
+        const esDeuda = m.tipo==='deuda';
+        const esPago = m.tipo==='pago';
+        const esVenta = m.tipo==='venta';
+        const icon = esDeuda?'🔴':esPago?'🟢':esVenta?'🛒':m.tipo==='presupuesto-conv'?'📋✓':'📋';
+        const color = esPago?'var(--green)':esDeuda?'var(--red)':'var(--rose)';
+        const badge = m.tipo==='presupuesto-conv'?'<span style="background:rgba(5,150,105,.12);color:var(--green);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">CONV</span>':
+                      m.tipo==='presupuesto'?'<span style="background:var(--rose-soft);color:var(--rose);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">PEND</span>':
+                      esDeuda?'<span style="background:rgba(220,38,38,.1);color:var(--red);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">DEBE</span>':
+                      esPago?'<span style="background:rgba(5,150,105,.1);color:var(--green);font-size:9px;font-weight:700;padding:1px 6px;border-radius:10px">PAGÓ</span>':'';
+        let html='<div style="display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:9px 0;border-bottom:1px solid var(--border)">';
+        html+='<div><div style="display:flex;align-items:center;gap:6px">';
+        html+='<span style="font-size:15px">'+icon+'</span>';
+        html+='<span style="font-weight:600">'+m.desc+'</span>'+badge;
+        html+='</div><div style="color:var(--text2);font-size:11px;margin-top:1px">'+new Date(m.fecha).toLocaleDateString('es-AR')+(m.sub?' · '+m.sub:'')+(m.metodo?' · '+m.metodo:'')+'</div></div>';
+        html+='<div style="display:flex;align-items:center;gap:8px">';
+        html+='<div style="font-weight:800;color:'+color+'">'+(esPago?'-':'+')+fmt(m.monto)+'</div>';
+        if((esVenta||esDeuda)&&m.id) html+='<button style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--text2)" data-vid="'+m.id+'" onclick="verTicketVenta(this.dataset.vid)">🧾</button>';
+        html+='</div></div>';
+        return html;
+      }).join('');
     })()}
   `;
   document.getElementById('ficha-content').innerHTML=html;
   openModal('modal-ficha');
 }
 function openPagoCli(id){
+  const cli=state.clientes.find(c=>c._id===id);
+  if(!cli) return;
   document.getElementById('pago-cli-id').value=id;
   document.getElementById('pago-monto').value='';
   document.getElementById('pago-nota').value='';
+  // Show saldo in modal
+  const saldoEl=document.getElementById('pago-saldo-info');
+  if(saldoEl) saldoEl.textContent='Deuda actual: '+fmt(cli.saldo||0);
+  // Reset método
+  const metEl=document.getElementById('pago-metodo');
+  if(metEl) metEl.value='efectivo';
   openModal('modal-pago-cli');
 }
 async function guardarPagoCli(){
   const id=document.getElementById('pago-cli-id').value;
   const monto=parseFloat(document.getElementById('pago-monto').value)||0;
-  const nota=document.getElementById('pago-nota').value;
-  if(!monto){toast('Ingresá un monto');return;}
+  const nota=document.getElementById('pago-nota').value.trim();
+  const metodo=document.getElementById('pago-metodo')?.value||'efectivo';
+  if(!monto||monto<=0){toast('Ingresá un monto');return;}
   const cli=state.clientes.find(c=>c._id===id);
   if(!cli) return;
-  cli.saldo=Math.max(0,(cli.saldo||0)-monto);
+  // Restar del saldo (puede quedar en negativo = favor del cliente)
+  cli.saldo=(cli.saldo||0)-monto;
   if(!cli.movimientos) cli.movimientos=[];
-  cli.movimientos.push({tipo:'pago',monto,fecha:new Date().toISOString(),desc:nota||'Pago'});
-  await dbUpdate('clientes',id,cli);
-  closeModal('modal-pago-cli');renderClientes();
-  toast('Pago registrado ✓');
+  const metodoLabel={efectivo:'Efectivo',transferencia:'Transferencia',tarjeta:'Tarjeta'};
+  cli.movimientos.push({
+    tipo:'pago',
+    monto,
+    metodo,
+    fecha:new Date().toISOString(),
+    desc:(nota||'Pago')+' — '+(metodoLabel[metodo]||metodo)
+  });
+  const {_id,...cliSin}=cli;
+  await dbUpdate('clientes',cli._id,cliSin);
+  closeModal('modal-pago-cli');
+  renderClientes();
+  openFicha(id);
+  toast('Pago de '+fmt(monto)+' registrado ✓');
 }
 
 function renderHistorial(){
@@ -1132,10 +1210,14 @@ function renderCajaDiaria(){
 
   // ── PANEL CAJA ACTIVA
   const activo = document.getElementById('caja-activa-panel');
+  const openBtn = document.getElementById('caja-open-btn');
+  const estadoBar = document.getElementById('caja-estado-bar');
   if(!state.caja){
-    if(sub) sub.textContent = 'No hay caja abierta';
+    if(sub) sub.textContent = 'Sin caja abierta';
     if(printBtn) printBtn.style.display='none';
-    activo.innerHTML=`<button class="btn btn-primary btn-full" onclick="openModal('modal-caja')" style="margin-bottom:16px"><i class="ti ti-lock-open"></i> Abrir nueva caja</button>`;
+    if(openBtn) openBtn.style.display='flex';
+    if(estadoBar) estadoBar.innerHTML='<div style="background:rgba(220,38,38,.08);border:1.5px solid rgba(220,38,38,.2);border-radius:12px;padding:12px 14px;font-size:13px;color:var(--red);font-weight:600">🔒 La caja está cerrada. Abrila para registrar ventas.</div>';
+    activo.innerHTML='';
   } else {
     const apertura = new Date(state.caja.horaApertura);
     const ventasCaja = state.ventas.filter(v=>new Date(v.fecha)>=apertura);
@@ -1147,8 +1229,10 @@ function renderCajaDiaria(){
     const totalEgr = movs.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
     const efectivoFinal = state.caja.inicio + totales.efectivo + totalIng - totalEgr;
 
-    if(sub) sub.textContent = 'Abierta '+new Date(state.caja.horaApertura).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    if(sub) sub.textContent = 'Abierta desde las '+new Date(state.caja.horaApertura).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
     if(printBtn) printBtn.style.display='block';
+    if(openBtn) openBtn.style.display='none';
+    if(estadoBar) estadoBar.innerHTML='<div style="background:rgba(5,150,105,.08);border:1.5px solid rgba(5,150,105,.2);border-radius:12px;padding:10px 14px;font-size:12px;color:var(--green);font-weight:600">🟢 Caja abierta · Apertura: '+fmt(state.caja.inicio)+'</div>';
 
     // Build unified movements table
     const todosMovs = [];
@@ -1456,18 +1540,14 @@ function renderCajaPanel(){
   `;
   document.getElementById('caja-status').textContent='Caja abierta ✓';
 }
-function cerrarSesion(){
+async function cerrarSesion(){
   if(!confirm('¿Cerrar sesión?')) return;
-  localStorage.removeItem('mtb_usuario');
-  localStorage.removeItem('mtb_pass');
+  await window._fbSignOut(window._fbAuth);
+  localStorage.removeItem('mtb_lastsec');
   location.reload();
 }
 function resetearCuenta(){
-  if(!confirm('¿Resetear usuario y contraseña?\n\nTus artículos, clientes y ventas NO se borran.')) return;
-  localStorage.removeItem('mtb_usuario');
-  localStorage.removeItem('mtb_pass');
-  toast('Cuenta reseteada. Vas a poder crear una nueva.');
-  setTimeout(()=>location.reload(),1500);
+  toast('Para cambiar contraseña, cerrá sesión y usá "¿Olvidé mi contraseña?" si lo agregamos.');
 }
 async function borrarCaja(id){
   if(!confirm('¿Borrar esta caja del historial?')) return;
@@ -1947,15 +2027,28 @@ function addPresuItem(){
 function removePresuItem(i){presuItems.splice(i,1);renderPresuItems();renderPresu();}
 function renderPresuItems(){
   const art=state.articulos;
+  // Build datalist once
+  const dlId='presu-art-dl';
+  let dl=document.getElementById(dlId);
+  if(!dl){dl=document.createElement('datalist');dl.id=dlId;document.body.appendChild(dl);}
+  dl.innerHTML=art.map(a=>'<option value="'+a.nombre+'">$'+a.precio.toLocaleString('es-AR')+'</option>').join('');
   document.getElementById('presu-items').innerHTML=presuItems.map((it,i)=>`
     <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px">
-      <select onchange="presuSelectArt(${i},this.value)" style="flex:2;padding:8px;font-size:13px">
-        <option value="">-- Artículo --</option>
-        ${art.map(a=>`<option value="${a._id}" ${String(a._id)===String(it._artId)?'selected':''}>${a.nombre} ($${a.precio.toLocaleString('es-AR')})</option>`).join('')}
-      </select>
-      <input type="number" value="${it.qty}" min="1" onchange="presuItems[${i}].qty=+this.value;renderPresu()" style="width:52px;padding:8px;text-align:center">
+      <div style="flex:2;position:relative">
+        <input list="presu-art-dl" value="${it.nombre||''}" placeholder="Buscar artículo..."
+          oninput="presuInputArt(${i},this.value)"
+          style="width:100%;padding:8px;font-size:13px;border-radius:var(--radius-xs);border:1.5px solid var(--border)">
+        ${it.precio?'<div style="font-size:10px;color:var(--text2);margin-top:2px;padding-left:2px">$'+it.precio.toLocaleString('es-AR')+' c/u</div>':''}
+      </div>
+      <input type="number" value="${it.qty}" min="1" onchange="presuItems[${i}].qty=+this.value;renderPresu()" style="width:52px;padding:8px;text-align:center;border-radius:var(--radius-xs);border:1.5px solid var(--border)">
       <button onclick="removePresuItem(${i})" class="btn btn-danger btn-icon btn-sm"><i class="ti ti-trash"></i></button>
     </div>`).join('');
+  renderPresu();
+}
+function presuInputArt(i,val){
+  const art=state.articulos.find(a=>a.nombre.toLowerCase()===val.toLowerCase());
+  if(art){presuItems[i]={nombre:art.nombre,precio:art.precio,qty:presuItems[i].qty,_artId:art._id};}
+  else{presuItems[i].nombre=val;presuItems[i].precio=0;presuItems[i]._artId=null;}
   renderPresu();
 }
 function presuSelectArt(i,id){
@@ -2236,18 +2329,53 @@ function presuPDF(){
 
 // ══ STOCK ALERT BANNER ══════════════════════════════
 function renderStockAlertBanner(){
+  // Update notification badge in header
+  const bajos=state.articulos.filter(a=>a.nombre!=='Envío'&&(a.stock||0)<=(a.stockMin||3));
+  const badge=document.getElementById('notif-badge');
+  if(badge){
+    if(bajos.length>0){
+      badge.textContent=bajos.length;
+      badge.style.display='flex';
+    } else {
+      badge.style.display='none';
+    }
+  }
+  // Clear old banner (no longer used inline)
   const el=document.getElementById('stock-alerta-banner');
-  if(!el) return;
-  const bajos=state.articulos.filter(a=>a.stock<=a.stockMin&&a.nombre!=='Envío');
-  const agotados=bajos.filter(a=>a.stock===0);
-  const pocos=bajos.filter(a=>a.stock>0);
-  if(!bajos.length){el.innerHTML='';return;}
-  let html='<div style="background:rgba(217,119,6,.1);border:1.5px solid rgba(217,119,6,.3);border-radius:12px;padding:12px;margin-bottom:12px">';
-  html+='<div style="font-size:12px;font-weight:700;color:var(--amber);margin-bottom:6px">⚠️ ALERTAS DE STOCK</div>';
-  agotados.forEach(a=>{html+='<div style="font-size:12px;padding:3px 0;color:var(--red)">❌ '+a.nombre+' — <strong>Sin stock</strong></div>';});
-  pocos.forEach(a=>{html+='<div style="font-size:12px;padding:3px 0;color:var(--amber)">⚠️ '+a.nombre+' — <strong>'+a.stock+' restantes</strong> (mín. '+a.stockMin+')</div>';});
-  html+='</div>';
-  el.innerHTML=html;
+  if(el) el.innerHTML='';
+}
+function openNotifStock(){
+  const bajos=state.articulos.filter(a=>a.nombre!=='Envío'&&(a.stock||0)<=(a.stockMin||3));
+  const agotados=bajos.filter(a=>(a.stock||0)===0);
+  const pocos=bajos.filter(a=>(a.stock||0)>0);
+  let html='<div class="modal-handle"></div>';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">';
+  html+='<div class="modal-title" style="margin-bottom:0">🔔 Alertas de stock</div>';
+  html+='<button class="btn btn-secondary btn-icon btn-sm" data-mid="modal-notif" onclick="closeModal(this.dataset.mid)"><i class="ti ti-x"></i></button></div>';
+  if(!bajos.length){
+    html+='<div style="text-align:center;padding:30px;color:var(--text3)">✅ Todo el stock está bien</div>';
+  } else {
+    if(agotados.length){
+      html+='<div style="font-size:11px;font-weight:700;color:var(--red);letter-spacing:.05em;margin-bottom:8px">AGOTADOS</div>';
+      agotados.forEach(a=>{
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15);border-radius:10px;margin-bottom:6px">';
+        html+='<div><div style="font-size:13px;font-weight:600">'+a.nombre+'</div><div style="font-size:11px;color:var(--text2)">'+( a.categoria||'')+'</div></div>';
+        html+='<span style="background:rgba(220,38,38,.1);color:var(--red);font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px">Sin stock</span>';
+        html+='</div>';
+      });
+    }
+    if(pocos.length){
+      html+='<div style="font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.05em;margin:'+(agotados.length?'12px':'0')+'px 0 8px">STOCK BAJO</div>';
+      pocos.forEach(a=>{
+        html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.15);border-radius:10px;margin-bottom:6px">';
+        html+='<div><div style="font-size:13px;font-weight:600">'+a.nombre+'</div><div style="font-size:11px;color:var(--text2)">Mín. '+(a.stockMin||3)+' uds</div></div>';
+        html+='<span style="background:rgba(217,119,6,.1);color:var(--amber);font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px">'+a.stock+' restantes</span>';
+        html+='</div>';
+      });
+    }
+  }
+  document.getElementById('notif-content').innerHTML=html;
+  openModal('modal-notif');
 }
 
 // ══ VER TICKET DE VENTA GUARDADA ════════════════════
@@ -2361,46 +2489,147 @@ function previewArtFoto(input){
   };
   reader.readAsDataURL(file);
 }
+// ══ ADMIN USER MANAGEMENT ═══════════════════════
+async function renderAdminPanel(){
+  const panel=document.getElementById('admin-panel');
+  const u=window._currentUser;
+  if(!panel||!u||u.rol!=='admin'){if(panel)panel.style.display='none';return;}
+  panel.style.display='block';
+  const snap=await window._fbGetDocs(window._fbCol(window._fbDb,'usuarios'));
+  const usuarios=[];
+  snap.forEach(d=>usuarios.push({...d.data(),_id:d.id}));
+  const list=document.getElementById('admin-usuarios-list');
+  if(!list) return;
+  // Store usuarios globally for button access
+  window._adminUsuarios = usuarios;
+  list.innerHTML=usuarios.map((usr,idx)=>{
+    const esYo=usr._id===u.uid;
+    const btnHtml=!esYo?'<button class="btn btn-sm" style="padding:4px 10px;font-size:11px" onclick="toggleUsuario(window._adminUsuarios['+idx+']._id,window._adminUsuarios['+idx+'].activo)">'+(usr.activo?'Desactivar':'Activar')+'</button>':'';
+    return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">'
+      +'<div><div style="font-size:13px;font-weight:600">'+usr.nombre+(esYo?' <span style="font-size:10px;color:var(--rose)">(vos)</span>':'')+'</div>'
+      +'<div style="font-size:11px;color:var(--text2)">'+usr.email+' · '+(usr.rol==='admin'?'👑 Admin':'👤 Usuario')+'</div></div>'
+      +'<div>'+btnHtml+'</div></div>';
+  }).join('');
+}
+function openCrearUsuario(){
+  document.getElementById('nuevo-usuario-nombre').value='';
+  document.getElementById('nuevo-usuario-email').value='';
+  document.getElementById('nuevo-usuario-pass').value='';
+  document.getElementById('nuevo-usuario-error').style.display='none';
+  openModal('modal-nuevo-usuario');
+}
+async function guardarNuevoUsuario(){
+  const nombre=document.getElementById('nuevo-usuario-nombre').value.trim();
+  const email=document.getElementById('nuevo-usuario-email').value.trim();
+  const pass=document.getElementById('nuevo-usuario-pass').value;
+  const err=document.getElementById('nuevo-usuario-error');
+  if(!nombre||!email||!pass){err.textContent='Completá todos los campos';err.style.display='block';return;}
+  if(pass.length<6){err.textContent='La contraseña debe tener al menos 6 caracteres';err.style.display='block';return;}
+  err.style.display='none';
+  try {
+    // Create user in Firebase Auth
+    const cred=await window._fbCreateUser(window._fbAuth,email,pass);
+    // Save to Firestore
+    await window._fbSetDoc(window._fbDoc(window._fbDb,'usuarios',cred.user.uid),{
+      nombre,email,rol:'usuario',activo:true,creadoEn:new Date().toISOString(),creadoPor:window._currentUser.uid
+    });
+    // Sign back in as admin (creating user signs in as them)
+    await window._fbSignIn(window._fbAuth,window._currentUser.email,prompt('Confirmá tu contraseña de admin para continuar:'));
+    closeModal('modal-nuevo-usuario');
+    renderAdminPanel();
+    toast('Usuario '+nombre+' creado ✓');
+  } catch(e) {
+    const msgs={'auth/email-already-in-use':'Ese email ya existe','auth/weak-password':'Contraseña muy corta'};
+    err.textContent=msgs[e.code]||'Error: '+e.message;err.style.display='block';
+  }
+}
+async function toggleUsuario(uid,isActivo){
+  if(!confirm((isActivo?'¿Desactivar':'¿Activar')+' este usuario?')) return;
+  await window._fbSetDoc(window._fbDoc(window._fbDb,'usuarios',uid),{activo:!isActivo},{merge:true});
+  renderAdminPanel();
+  toast('Usuario '+(isActivo?'desactivado':'activado')+' ✓');
+}
+
+function showLoginScreen(msg){
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('registro-screen').style.display='none';
+  document.getElementById('app').style.display='none';
+  if(msg){
+    const err=document.getElementById('login-error');
+    err.textContent=msg;err.style.display='block';
+  }
+}
+async function entrarApp(){
+  const email=document.getElementById('login-nombre').value.trim();
+  const pass=document.getElementById('login-pass').value;
+  const err=document.getElementById('login-error');
+  const btn=document.querySelector('#login-screen .btn-primary');
+  if(!email){err.textContent='Ingresá tu email';err.style.display='block';return;}
+  if(!pass){err.textContent='Ingresá tu contraseña';err.style.display='block';return;}
+  err.style.display='none';
+  if(btn){btn.textContent='Ingresando...';btn.disabled=true;}
+  try {
+    await window._fbSignIn(window._fbAuth, email, pass);
+    // onAuthStateChanged handles the rest
+  } catch(e) {
+    if(btn){btn.textContent='Ingresar';btn.disabled=false;}
+    const msgs={
+      'auth/user-not-found':'No existe una cuenta con ese email',
+      'auth/wrong-password':'Contraseña incorrecta',
+      'auth/invalid-email':'Email inválido',
+      'auth/invalid-credential':'Email o contraseña incorrectos',
+      'auth/too-many-requests':'Demasiados intentos. Esperá unos minutos.'
+    };
+    err.textContent=msgs[e.code]||'Error al ingresar. Revisá tus datos.';
+    err.style.display='block';
+  }
+}
 async function registrarse(){
   const nombre=document.getElementById('reg-nombre').value.trim();
+  const email=document.getElementById('reg-email').value.trim();
   const pass=document.getElementById('reg-pass').value;
   const pass2=document.getElementById('reg-pass2').value;
   const err=document.getElementById('reg-error');
-  if(!nombre||!pass){err.textContent='Completá todos los campos';err.style.display='block';return;}
+  if(!nombre||!email||!pass){err.textContent='Completá todos los campos';err.style.display='block';return;}
   if(pass!==pass2){err.textContent='Las contraseñas no coinciden';err.style.display='block';return;}
-  if(pass.length<4){err.textContent='La contraseña debe tener al menos 4 caracteres';err.style.display='block';return;}
-  // Guardar localmente
-  localStorage.setItem('mtb_usuario',nombre);
-  localStorage.setItem('mtb_pass',btoa(pass));
+  if(pass.length<6){err.textContent='La contraseña debe tener al menos 6 caracteres';err.style.display='block';return;}
   err.style.display='none';
-  iniciarSesion(nombre);
-}
-async function entrarApp(){
-  const nombre=document.getElementById('login-nombre').value.trim();
-  const pass=document.getElementById('login-pass').value;
-  const err=document.getElementById('login-error');
-  if(!nombre){err.textContent='Ingresá tu nombre';err.style.display='block';return;}
-  if(!pass){err.textContent='Ingresá tu contraseña';err.style.display='block';return;}
-  const savedNombre=localStorage.getItem('mtb_usuario');
-  const savedPass=localStorage.getItem('mtb_pass');
-  if(!savedNombre||!savedPass){
-    err.textContent='No hay ninguna cuenta creada. Tocá "Crear cuenta".';err.style.display='block';return;
+  // Check if there are already users (only admin can create more)
+  try {
+    const usersSnap = await window._fbGetDocs(window._fbCol(window._fbDb,'usuarios'));
+    if(usersSnap.size>0){
+      err.textContent='Ya existe una cuenta. Solo el admin puede agregar usuarios.';err.style.display='block';return;
+    }
+    // Create first user as admin
+    const cred = await window._fbCreateUser(window._fbAuth, email, pass);
+    await window._fbSetDoc(window._fbDoc(window._fbDb,'usuarios',cred.user.uid),{
+      nombre, email, rol:'admin', activo:true, creadoEn:new Date().toISOString()
+    });
+    // onAuthStateChanged handles login
+  } catch(e) {
+    const msgs={
+      'auth/email-already-in-use':'Ese email ya tiene una cuenta',
+      'auth/weak-password':'La contraseña es muy corta (mín. 6 caracteres)',
+      'auth/invalid-email':'Email inválido'
+    };
+    err.textContent=msgs[e.code]||'Error al crear cuenta: '+e.message;
+    err.style.display='block';
   }
-  if(nombre.toLowerCase()!==savedNombre.toLowerCase()){
-    err.textContent='Usuario incorrecto';err.style.display='block';return;
-  }
-  if(btoa(pass)!==savedPass){
-    err.textContent='Contraseña incorrecta';err.style.display='block';return;
-  }
-  err.style.display='none';
-  iniciarSesion(savedNombre);
 }
 function iniciarSesion(nombre){
   document.getElementById('login-screen').style.display='none';
   document.getElementById('registro-screen').style.display='none';
   document.getElementById('app').style.display='flex';
-  document.getElementById('header-usuario').textContent='Hola, '+nombre+' 💅';
-  goTo('venta',document.getElementById('nav-venta'));
+  const u=window._currentUser;
+  document.getElementById('header-usuario').textContent='Hola, '+(u?u.nombre:nombre)+' 💅';
+  // Show admin badge
+  if(u&&u.rol==='admin'){
+    const el=document.getElementById('header-usuario');
+    if(el) el.textContent='👑 '+u.nombre;
+  }
+  const lastSec = localStorage.getItem('mtb_lastsec')||'venta';
+  const navBtn = document.getElementById('nav-'+lastSec)||document.getElementById('nav-venta');
+  goTo(lastSec, navBtn);
   init().catch(e=>{console.error(e);toast('Error al conectar. Revisá tu conexión.');});
 }
 
@@ -2479,20 +2708,14 @@ async function importarArticulosDesdeExcel(){
   };
 }
 window.addEventListener('DOMContentLoaded',()=>{
-  // Wait for Firebase module to be ready before init
-  if(window._fbReady){ startApp(); }
-  else { window._fbOnReady = startApp; }
+  // onAuthStateChanged in firebase module handles auto-login
+  // Show login by default until auth resolves
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
 });
 function startApp(){
-  const nombre=localStorage.getItem('mtb_usuario');
-  const pass=localStorage.getItem('mtb_pass');
-  if(nombre&&pass){
-    iniciarSesion(nombre);
-  } else {
-    document.getElementById('login-screen').style.display='flex';
-    document.getElementById('registro-screen').style.display='none';
-    document.getElementById('app').style.display='none';
-  }
+  if(!window._currentUser){ showLoginScreen(); return; }
+  iniciarSesion(window._currentUser.nombre);
 }
 
 </script>
@@ -2547,8 +2770,8 @@ function startApp(){
     <div style="font-size:14px;color:#9d7a8a;margin-bottom:28px;text-align:center">Ingresá a tu tienda</div>
     <div style="width:100%;background:#fff;border-radius:24px;padding:28px 24px;box-shadow:0 8px 48px rgba(212,35,122,.12),0 2px 12px rgba(0,0,0,.04);border:1px solid #f0d4e4">
       <div class="form-group">
-        <label style="color:#9d7a8a;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Usuario</label>
-        <input id="login-nombre" placeholder="Tu nombre" style="font-size:16px;padding:14px;border-color:#f0d6e4;border-radius:14px;background:#fdf6f9"
+        <label style="color:#9d7a8a;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Email</label>
+        <input id="login-nombre" type="email" placeholder="tu@email.com" style="font-size:16px;padding:14px;border-color:#f0d6e4;border-radius:14px;background:#fdf6f9"
           oninput="loginFaceWatch()"
           onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
       </div>
@@ -2578,7 +2801,8 @@ function startApp(){
   <div style="font-size:13px;color:var(--text2);margin-bottom:24px">Solo la primera vez</div>
   <div style="width:100%;max-width:320px">
     <div class="form-group"><label>Tu nombre</label><input id="reg-nombre" placeholder="Ej: Laura" style="font-size:16px;padding:14px"></div>
-    <div class="form-group"><label>Contraseña</label><input id="reg-pass" type="password" placeholder="Elegí una contraseña" style="font-size:16px;padding:14px"></div>
+    <div class="form-group"><label>Email</label><input id="reg-email" type="email" placeholder="tu@email.com" style="font-size:16px;padding:14px"></div>
+    <div class="form-group"><label>Contraseña (mín. 6 caracteres)</label><input id="reg-pass" type="password" placeholder="Elegí una contraseña" style="font-size:16px;padding:14px"></div>
     <div class="form-group"><label>Repetir contraseña</label><input id="reg-pass2" type="password" placeholder="Repetí la contraseña" style="font-size:16px;padding:14px" onkeydown="if(event.key==='Enter'&&typeof registrarse==='function')registrarse()"></div>
     <div id="reg-error" style="color:var(--red);font-size:13px;text-align:center;margin-bottom:8px;display:none"></div>
     <button class="btn btn-primary btn-full" style="padding:14px;font-size:16px" onclick="if(typeof registrarse==='function')registrarse()">Crear cuenta 💅</button>
@@ -2595,6 +2819,9 @@ function startApp(){
     <div style="text-align:right">
       <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
         <div id="header-usuario" style="font-size:12px;color:var(--rose2);font-weight:600"></div>
+        <button onclick="openNotifStock()" id="btn-notif" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;position:relative" title="Alertas de stock">
+          🔔<span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;font-size:8px;font-weight:800;min-width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;padding:0 2px;border:1.5px solid var(--bg2)">0</span>
+        </button>
         <button onclick="toggleDarkMode()" id="btn-dark" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px" title="Modo oscuro/claro">🌙</button>
         <button onclick="cerrarSesion()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px" title="Cerrar sesión">🚪</button>
       </div>
@@ -2653,17 +2880,19 @@ function startApp(){
     </div>
     <!-- CAJA DIARIA -->
     <div id="sec-caja" class="section">
-      <div class="page-title-wrap">
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div class="page-title">Caja Diaria</div>
-            <div class="page-sub" id="caja-status-sub">Cargando...</div>
-          </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <div>
+          <div class="page-title">Caja Diaria</div>
+          <div class="page-sub" id="caja-status-sub" style="margin-bottom:0">Cargando...</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
           <div id="caja-print-btn" style="display:none">
             <button class="btn btn-secondary btn-sm" onclick="imprimirCajaActual()"><i class="ti ti-printer"></i> Imprimir</button>
           </div>
+          <button class="btn btn-primary btn-sm" id="caja-open-btn" onclick="openModal('modal-caja')" style="display:none"><i class="ti ti-lock-open"></i> Abrir caja</button>
         </div>
       </div>
+      <div id="caja-estado-bar" style="margin-bottom:14px"></div>
       <!-- Panel caja activa -->
       <div id="caja-activa-panel"></div>
       <!-- Cajas anteriores -->
@@ -2757,6 +2986,13 @@ function startApp(){
         <div class="card-title" style="margin-bottom:8px;color:var(--text2)">🔑 Cuenta</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Si olvidaste tu contraseña, podés resetear el acceso. <strong style="color:var(--text)">Tus datos no se borran.</strong></div>
         <button class="btn btn-danger btn-full btn-sm" onclick="resetearCuenta()">Resetear usuario y contraseña</button>
+      </div>
+      <!-- ADMIN PANEL -->
+      <div id="admin-panel" class="card" style="margin-top:12px;display:none;border-color:var(--rose)">
+        <div class="card-header"><span class="card-title" style="color:var(--rose)">👑 Panel de Admin</span></div>
+        <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Gestioná los usuarios de la app</div>
+        <div id="admin-usuarios-list" style="margin-bottom:10px"></div>
+        <button class="btn btn-primary btn-sm btn-full" onclick="openCrearUsuario()"><i class="ti ti-user-plus"></i> Agregar usuario</button>
       </div>
     </div>
   </div>
@@ -2900,13 +3136,23 @@ function startApp(){
 <!-- MODAL PAGO CLIENTE -->
 <div class="modal-bg" id="modal-pago-cli">
   <div class="modal">
-    <div class="modal-title">Registrar pago</div>
+    <div class="modal-handle"></div>
+    <div class="modal-title">Registrar cobro</div>
     <input type="hidden" id="pago-cli-id">
-    <div class="form-group"><label>Monto ($)</label><input id="pago-monto" type="number" placeholder="0"></div>
-    <div class="form-group"><label>Nota</label><input id="pago-nota" placeholder="Ej: Pago parcial..."></div>
+    <div style="background:var(--rose-soft);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;font-weight:700;color:var(--rose)" id="pago-saldo-info">Deuda actual: —</div>
+    <div class="form-group">
+      <label>Método de pago</label>
+      <select id="pago-metodo">
+        <option value="efectivo">💵 Efectivo</option>
+        <option value="transferencia">📱 Transferencia</option>
+        <option value="tarjeta">💳 Tarjeta</option>
+      </select>
+    </div>
+    <div class="form-group"><label>Monto a cobrar ($)</label><input id="pago-monto" type="number" placeholder="0" inputmode="decimal"></div>
+    <div class="form-group"><label>Nota (opcional)</label><input id="pago-nota" placeholder="Ej: Pago parcial, cuota 1..."></div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-secondary btn-full" onclick="closeModal('modal-pago-cli')">Cancelar</button>
-      <button class="btn btn-primary btn-full" onclick="guardarPagoCli()">Guardar</button>
+      <button class="btn btn-primary btn-full" onclick="guardarPagoCli()"><i class="ti ti-check"></i> Registrar</button>
     </div>
   </div>
 </div>
@@ -2974,6 +3220,29 @@ function startApp(){
 
 
 
+
+<!-- MODAL NOTIFICACIONES STOCK -->
+<div id="modal-notif" class="modal-bg">
+  <div class="modal">
+    <div id="notif-content"></div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO USUARIO ADMIN -->
+<div id="modal-nuevo-usuario" class="modal-bg">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Nuevo usuario</div>
+    <div class="form-group"><label>Nombre</label><input id="nuevo-usuario-nombre" placeholder="Ej: Laura"></div>
+    <div class="form-group"><label>Email</label><input id="nuevo-usuario-email" type="email" placeholder="email@ejemplo.com"></div>
+    <div class="form-group"><label>Contraseña (mín. 6 caracteres)</label><input id="nuevo-usuario-pass" type="password" placeholder="••••••••"></div>
+    <div id="nuevo-usuario-error" style="color:var(--red);font-size:12px;margin-bottom:8px;display:none"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-full" onclick="closeModal('modal-nuevo-usuario')">Cancelar</button>
+      <button class="btn btn-primary btn-full" onclick="guardarNuevoUsuario()"><i class="ti ti-check"></i> Crear</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL NUEVO CLIENTE DESDE VENTA -->
 <div id="modal-nuevo-cli-venta" class="modal-bg">
