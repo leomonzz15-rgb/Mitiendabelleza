@@ -17,7 +17,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalStoragePersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyD-zs14xbQO-UIsJyP_Z7I1PyI7_Sh1IBU",
@@ -49,8 +49,6 @@
 
   // Listen for auth state - auto login if session exists
   let _appStarted = false;
-  // Set persistence so session survives page reloads
-  setPersistence(auth, browserLocalStoragePersistence).catch(()=>{});
   onAuthStateChanged(auth, async (user) => {
     if(user){
       // Get user role from Firestore
@@ -82,12 +80,11 @@
     } else {
       window._currentUser = null;
       _appStarted = false;
-      // Small delay to avoid flicker on page load
-      setTimeout(()=>{
-        if(!window._appDataLoaded && !window._currentUser){
-          showLoginScreen();
-        }
-      }, 800);
+      if(document.getElementById('app') && document.getElementById('app').style.display !== 'none'){
+        showLoginScreen();
+      } else if(document.getElementById('app')){
+        showLoginScreen();
+      }
     }
   });
 
@@ -96,22 +93,21 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   :root{
-    --bg:#fff8fc;--bg2:#ffffff;--bg3:#fff0f8;--bg4:#fce4f4;
-    --rose:#c2185b;--rose2:#ad1457;--rose3:#880e4f;--rose-light:#f48fb1;
-    --rose4:#fce4ec;
-    --rose-soft:rgba(194,24,91,.07);
-    --text:#1a0814;--text2:#6b3050;--text3:#c48aaa;
-    --border:#f8d7ea;--border2:#f0c0d8;
+    --bg:#fdf8fb;--bg2:#ffffff;--bg3:#fdf0f6;--bg4:#fae6f2;
+    --rose:#d4237a;--rose2:#b91a68;--rose3:#96145a;--rose-light:#f472b6;
+    --rose-soft:rgba(212,35,122,.08);
+    --text:#1a0d14;--text2:#6b3d56;--text3:#b08ea0;
+    --border:#f0d4e4;--border2:#e8c4d8;
     --green:#059669;--red:#dc2626;--amber:#d97706;--blue:#4f46e5;
-    --card-glow:0 2px 16px rgba(194,24,91,.07),0 4px 28px rgba(0,0,0,.04);
-    --card-glow-hover:0 4px 28px rgba(194,24,91,.14),0 8px 36px rgba(0,0,0,.08);
-    --radius:20px;--radius-sm:14px;--radius-xs:9px;
-    --font:'Nunito',system-ui,sans-serif;
-    --font-display:'Cormorant Garamond',serif;
+    --card-glow:0 1px 12px rgba(212,35,122,.06),0 4px 24px rgba(0,0,0,.04);
+    --card-glow-hover:0 2px 20px rgba(212,35,122,.12),0 8px 32px rgba(0,0,0,.08);
+    --radius:18px;--radius-sm:12px;--radius-xs:8px;
+    --font:'DM Sans',system-ui,sans-serif;
+    --font-display:'Playfair Display',serif;
   }
   body.dark{
     --bg:#0c0709;--bg2:#140c11;--bg3:#1c1118;--bg4:#241520;
@@ -132,16 +128,15 @@
 
   /* HEADER */
   #header{
-    background:linear-gradient(135deg,rgba(255,248,252,.97) 0%,rgba(255,240,250,.97) 100%);
-    backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+    background:rgba(253,248,251,.94);
+    backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
     border-bottom:1px solid var(--border);
-    padding:14px 20px;
+    padding:13px 18px;
     display:flex;align-items:center;justify-content:space-between;
     position:sticky;top:0;z-index:100;
-    box-shadow:0 2px 20px rgba(194,24,91,.06);
   }
-  #header img{height:34px;object-fit:contain}
-  #header-title{font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--rose);display:none;letter-spacing:.02em;font-style:italic}
+  #header img{height:32px;object-fit:contain}
+  #header-title{font-family:var(--font-display);font-size:16px;font-weight:700;color:var(--rose);display:none;letter-spacing:-.01em}
   #content{flex:1;overflow-y:auto;padding-bottom:88px}
 
   /* NAV */
@@ -158,17 +153,17 @@
   .nav-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
     padding:10px 2px 8px;gap:3px;border:none;background:none;
-    color:var(--text3);cursor:pointer;font-size:9px;font-weight:700;
-    transition:all .2s;letter-spacing:.04em;text-transform:uppercase;font-family:var(--font);
+    color:var(--text3);cursor:pointer;font-size:9px;font-weight:600;
+    transition:all .2s;letter-spacing:.02em;text-transform:uppercase;
   }
-  .nav-btn i{font-size:22px;transition:all .25s}
+  .nav-btn i{font-size:21px;transition:all .2s}
   .nav-btn.active{color:var(--rose)}
   .nav-btn.active i{
-    filter:drop-shadow(0 0 10px rgba(194,24,91,.45));
-    transform:translateY(-2px) scale(1.08);
+    filter:drop-shadow(0 0 8px rgba(212,35,122,.4));
+    transform:translateY(-1px);
   }
   .nav-btn span{transition:all .2s}
-  .nav-btn.active span{font-weight:800;color:var(--rose)}
+  .nav-btn.active span{font-weight:700}
 
   /* SECTIONS */
   .section{padding:18px;display:none}
@@ -184,12 +179,11 @@
   }
   .btn:active{transform:scale(.95);opacity:.88}
   .btn-primary{
-    background:linear-gradient(135deg,#e91e8c 0%,var(--rose) 50%,var(--rose3) 100%);
+    background:linear-gradient(135deg,var(--rose) 0%,var(--rose3) 100%);
     color:#fff;
-    box-shadow:0 4px 20px rgba(194,24,91,.38),0 1px 4px rgba(194,24,91,.2);
-    letter-spacing:.02em;
+    box-shadow:0 4px 18px rgba(212,35,122,.32),0 1px 4px rgba(212,35,122,.2);
   }
-  .btn-primary:hover{box-shadow:0 6px 28px rgba(194,24,91,.48),0 2px 8px rgba(194,24,91,.28);}
+  .btn-primary:hover{box-shadow:0 6px 24px rgba(212,35,122,.42),0 2px 6px rgba(212,35,122,.25);}
   .btn-secondary{
     background:var(--bg3);color:var(--text);
     border:1.5px solid var(--border2);
@@ -206,26 +200,24 @@
 
   /* INPUTS */
   input,select,textarea{
-    width:100%;padding:13px 16px;
-    background:var(--bg3);
+    width:100%;padding:12px 15px;
+    background:var(--bg2);
     border:1.5px solid var(--border);
     border-radius:var(--radius-sm);
     color:var(--text);font-size:14px;
     font-family:var(--font);outline:none;
     transition:all .18s;
-    font-weight:500;
   }
   input:focus,select:focus,textarea:focus{
     border-color:var(--rose);
-    background:#fff;
-    box-shadow:0 0 0 4px rgba(194,24,91,.09);
+    background:var(--bg2);
+    box-shadow:0 0 0 3px rgba(212,35,122,.1);
   }
   select option{background:var(--bg2)}
   label{
-    display:block;font-size:10px;color:var(--rose2);
-    margin-bottom:7px;font-weight:800;
-    letter-spacing:.08em;text-transform:uppercase;
-    font-family:var(--font);
+    display:block;font-size:10.5px;color:var(--text2);
+    margin-bottom:6px;font-weight:700;
+    letter-spacing:.06em;text-transform:uppercase;
   }
   .form-group{margin-bottom:15px}
 
@@ -234,13 +226,13 @@
     background:var(--bg2);
     border:1px solid var(--border);
     border-radius:var(--radius);
-    padding:18px;margin-bottom:12px;
+    padding:16px;margin-bottom:10px;
     box-shadow:var(--card-glow);
-    transition:all .22s;
+    transition:box-shadow .2s;
   }
-  .card:hover{box-shadow:var(--card-glow-hover);transform:translateY(-1px)}
-  .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-  .card-title{font-size:15px;font-weight:800;letter-spacing:-.01em}
+  .card:hover{box-shadow:var(--card-glow-hover);}
+  .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .card-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
 
   /* BADGES */
   .badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.02em}
@@ -262,36 +254,34 @@
   @keyframes fadeIn{from{opacity:0}to{opacity:1}}
   .modal{
     background:var(--bg2);
-    border-radius:32px 32px 0 0;
-    border-top:1px solid var(--border);
-    padding:8px 20px 32px;
+    border-radius:28px 28px 0 0;
+    border-top:1px solid var(--border2);
+    padding:8px 18px 24px;
     width:100%;max-width:480px;max-height:92vh;overflow-y:auto;
-    animation:slideUp .3s cubic-bezier(.32,.72,0,1);
-    box-shadow:0 -8px 40px rgba(194,24,91,.1);
+    animation:slideUp .28s cubic-bezier(.32,.72,0,1);
   }
   @keyframes slideUp{from{transform:translateY(40px);opacity:.6}to{transform:translateY(0);opacity:1}}
   .modal-handle{width:40px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 18px}
-  .modal-title{font-size:21px;font-weight:900;margin-bottom:20px;letter-spacing:-.02em;font-family:var(--font-display);font-style:italic;color:var(--rose2)}
+  .modal-title{font-size:19px;font-weight:800;margin-bottom:18px;letter-spacing:-.02em}
 
   /* TYPOGRAPHY */
   .divider{height:1px;background:var(--border);margin:14px 0}
-  .page-title{font-size:24px;font-weight:900;margin-bottom:2px;letter-spacing:-.03em;color:var(--text);font-family:var(--font)}
+  .page-title{font-size:22px;font-weight:800;margin-bottom:2px;letter-spacing:-.03em;color:var(--text)}
   .page-sub{font-size:13px;color:var(--text2);margin-bottom:16px;font-weight:500}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
   /* LIST ITEMS */
   .list-item{
     display:flex;align-items:center;justify-content:space-between;
-    padding:15px 16px;
+    padding:14px 15px;
     background:var(--bg2);
     border:1px solid var(--border);
     border-radius:var(--radius);
-    margin-bottom:9px;
+    margin-bottom:8px;
     box-shadow:var(--card-glow);
-    transition:all .2s;
+    transition:all .18s;
   }
-  .list-item:active{background:var(--bg3);transform:scale(.985)}
-  .list-item:hover{box-shadow:var(--card-glow-hover);transform:translateY(-1px)}
+  .list-item:active{background:var(--bg3);transform:scale(.99)}
   .li-left{display:flex;flex-direction:column;gap:3px}
   .li-title{font-size:14px;font-weight:600;letter-spacing:-.01em}
   .li-sub{font-size:12px;color:var(--text2)}
@@ -322,8 +312,8 @@
     width:64px;height:64px;border-radius:50%;
     background:var(--rose-soft);
   }
-  .stat-val{font-size:24px;font-weight:900;color:var(--rose);letter-spacing:-.04em;position:relative;font-family:var(--font)}
-  .stat-label{font-size:10px;color:var(--text2);margin-top:5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;position:relative}
+  .stat-val{font-size:22px;font-weight:800;color:var(--rose);letter-spacing:-.03em;position:relative}
+  .stat-label{font-size:10px;color:var(--text2);margin-top:4px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;position:relative}
 
   /* SEARCH */
   .searchbar{position:relative;margin-bottom:14px}
@@ -426,18 +416,8 @@ function goTo(sec,btn){
 
 
 
-function openModal(id){
-  document.getElementById(id).classList.add('open');
-  document.body.style.overflow='hidden';
-  document.body.style.position='fixed';
-  document.body.style.width='100%';
-}
-function closeModal(id){
-  document.getElementById(id).classList.remove('open');
-  document.body.style.overflow='';
-  document.body.style.position='';
-  document.body.style.width='';
-}
+function openModal(id){document.getElementById(id).classList.add('open');document.body.style.overflow='hidden';}
+function closeModal(id){document.getElementById(id).classList.remove('open');document.body.style.overflow='';}
 
 function getDb(){ return window._fbDb; }
 async function dbGet(table){
@@ -2742,6 +2722,11 @@ async function entrarApp(){
   if(!email){err.textContent='Ingresá tu email';err.style.display='block';return;}
   if(!pass){err.textContent='Ingresá tu contraseña';err.style.display='block';return;}
   err.style.display='none';
+  if(!window._fbSignIn || !window._fbAuth){
+    err.textContent='Cargando Firebase... intentá de nuevo en unos segundos.';
+    err.style.display='block';
+    return;
+  }
   if(btn){btn.textContent='Ingresando...';btn.disabled=true;}
   try {
     await window._fbSignIn(window._fbAuth, email, pass);
@@ -2769,6 +2754,12 @@ async function registrarse(){
   if(pass!==pass2){err.textContent='Las contraseñas no coinciden';err.style.display='block';return;}
   if(pass.length<6){err.textContent='La contraseña debe tener al menos 6 caracteres';err.style.display='block';return;}
   err.style.display='none';
+  // Wait for Firebase module to be ready
+  if(!window._fbCol || !window._fbDb){
+    err.textContent='Cargando... intentá de nuevo en unos segundos.';
+    err.style.display='block';
+    return;
+  }
   // Check if there are already users (only admin can create more)
   try {
     const usersSnap = await window._fbGetDocs(window._fbCol(window._fbDb,'usuarios'));
@@ -2792,7 +2783,6 @@ async function registrarse(){
   }
 }
 function iniciarSesion(nombre){
-  window._appDataLoaded = true;
   document.getElementById('login-screen').style.display='none';
   document.getElementById('registro-screen').style.display='none';
   document.getElementById('app').style.display='flex';
@@ -2897,130 +2887,168 @@ function startApp(){
 </script>
 <body>
 <!-- LOGIN -->
-<div id="login-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:28px 24px;background:linear-gradient(160deg,#0d0810 0%,#1a0d1f 45%,#0f0812 100%);position:relative;overflow:hidden">
+<div id="login-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px;background:radial-gradient(ellipse 120% 80% at 50% 0%,#fce7f3 0%,#fdf8fb 60%,#fdf8fb 100%);position:relative">
+  <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle at 80% 20%,rgba(244,114,182,.12) 0%,transparent 50%),radial-gradient(circle at 20% 80%,rgba(212,35,122,.08) 0%,transparent 50%);pointer-events:none"></div>
+  <div style="width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1">
 
-  <!-- Background glow orbs -->
-  <div style="position:absolute;top:-80px;right:-60px;width:280px;height:280px;border-radius:50%;background:radial-gradient(circle,rgba(194,24,91,.18) 0%,transparent 70%);pointer-events:none"></div>
-  <div style="position:absolute;bottom:-60px;left:-40px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(183,28,28,.12) 0%,transparent 70%);pointer-events:none"></div>
-  <div style="position:absolute;top:40%;left:50%;transform:translate(-50%,-50%);width:340px;height:340px;border-radius:50%;background:radial-gradient(circle,rgba(194,24,91,.06) 0%,transparent 70%);pointer-events:none"></div>
-
-  <div style="width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1">
-
-    <!-- Face avatar -->
-    <div style="margin-bottom:12px;filter:drop-shadow(0 8px 32px rgba(194,24,91,.35))">
-      <svg viewBox="0 0 110 110" width="110" height="110" xmlns="http://www.w3.org/2000/svg">
+    <!-- Animated face -->
+    <div style="margin-bottom:16px;position:relative;width:130px;height:130px;filter:drop-shadow(0 8px 24px rgba(232,64,154,.2))">
+      <svg id="login-face" viewBox="0 0 130 130" xmlns="http://www.w3.org/2000/svg" style="width:130px;height:130px">
         <defs>
-          <radialGradient id="fgA" cx="40%" cy="35%" r="65%">
-            <stop offset="0%" stop-color="#2a1228"/>
-            <stop offset="100%" stop-color="#120810"/>
+          <radialGradient id="faceGrad" cx="45%" cy="35%" r="60%">
+            <stop offset="0%" stop-color="#fff0f7"/>
+            <stop offset="100%" stop-color="#fce7f3"/>
           </radialGradient>
-          <radialGradient id="skinA" cx="42%" cy="32%" r="62%">
-            <stop offset="0%" stop-color="#ffe8f0"/>
-            <stop offset="100%" stop-color="#ffc8de"/>
+          <radialGradient id="pupilGrad" cx="35%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#5c2d4e"/>
+            <stop offset="100%" stop-color="#1a0a14"/>
           </radialGradient>
-          <radialGradient id="irisA" cx="38%" cy="28%" r="66%">
-            <stop offset="0%" stop-color="#e91e8c"/>
-            <stop offset="100%" stop-color="#880e4f"/>
+          <radialGradient id="irisGrad" cx="40%" cy="30%" r="65%">
+            <stop offset="0%" stop-color="#c0306e"/>
+            <stop offset="100%" stop-color="#831843"/>
           </radialGradient>
-          <filter id="glow"><feGaussianBlur stdDeviation="1.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <filter id="softBlur">
+            <feGaussianBlur stdDeviation="1.2"/>
+          </filter>
         </defs>
-        <!-- Glow ring -->
-        <circle cx="55" cy="57" r="46" fill="none" stroke="rgba(194,24,91,.25)" stroke-width="1"/>
-        <!-- Face -->
-        <circle cx="55" cy="57" r="42" fill="url(#skinA)"/>
-        <!-- Hair -->
-        <path d="M 16 50 Q 18 8 55 6 Q 92 8 94 50 Q 90 20 55 18 Q 20 20 16 50Z" fill="#1a0820"/>
-        <!-- Side hair wisps -->
-        <path d="M 16 52 Q 10 65 14 78" stroke="#1a0820" stroke-width="8" fill="none" stroke-linecap="round"/>
-        <path d="M 94 52 Q 100 65 96 78" stroke="#1a0820" stroke-width="8" fill="none" stroke-linecap="round"/>
-        <!-- Hair shine -->
-        <path d="M 32 22 Q 45 12 62 14" stroke="rgba(255,255,255,.15)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-        <!-- Ears -->
-        <ellipse cx="13" cy="60" rx="6" ry="8" fill="#ffd0e4"/>
-        <ellipse cx="97" cy="60" rx="6" ry="8" fill="#ffd0e4"/>
-        <!-- Eyebrows - thin elegant arched -->
-        <path d="M 32 42 Q 41 37 49 40" stroke="#1a0820" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <path d="M 61 40 Q 69 37 78 42" stroke="#1a0820" stroke-width="2" fill="none" stroke-linecap="round"/>
-        <!-- Eyes -->
-        <ellipse cx="40" cy="54" rx="10" ry="11" fill="white"/>
-        <circle cx="40" cy="55" r="7" fill="url(#irisA)"/>
-        <circle cx="40" cy="55" r="4.5" fill="#0d0610"/>
-        <circle cx="43" cy="52" r="2" fill="white" opacity=".95"/>
-        <circle cx="37" cy="57" r=".9" fill="white" opacity=".6"/>
-        <!-- Lashes left -->
-        <path d="M 31 47 Q 35 43 39 46" stroke="#1a0820" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        <path d="M 37 44 Q 41 41 44 44" stroke="#1a0820" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        <path d="M 44 44 Q 47 42 49 46" stroke="#1a0820" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        <!-- Right eye -->
-        <ellipse cx="70" cy="54" rx="10" ry="11" fill="white"/>
-        <circle cx="70" cy="55" r="7" fill="url(#irisA)"/>
-        <circle cx="70" cy="55" r="4.5" fill="#0d0610"/>
-        <circle cx="73" cy="52" r="2" fill="white" opacity=".95"/>
-        <circle cx="67" cy="57" r=".9" fill="white" opacity=".6"/>
-        <!-- Lashes right -->
-        <path d="M 61 47 Q 65 43 69 46" stroke="#1a0820" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        <path d="M 67 44 Q 71 41 74 44" stroke="#1a0820" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        <path d="M 74 44 Q 77 42 79 46" stroke="#1a0820" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        <!-- Nose subtle -->
-        <path d="M 53 66 Q 51 72 53 74 Q 57 76 61 74 Q 63 72 61 66" stroke="#e8a0b8" stroke-width="1" fill="none" stroke-linecap="round"/>
+
+        <!-- Shadow under face -->
+        <ellipse cx="65" cy="122" rx="42" ry="6" fill="#e8409a" opacity="0.12"/>
+
+        <!-- Face base -->
+        <circle cx="65" cy="63" r="56" fill="url(#faceGrad)" stroke="#f9c0d8" stroke-width="1.5"/>
+
+        <!-- Hair top -->
+        <path d="M 18 55 Q 20 10 65 8 Q 110 10 112 55" fill="#2d1f28" stroke="none"/>
+        <!-- Hair highlights -->
+        <path d="M 30 40 Q 40 20 65 16" stroke="#6b3a52" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.6"/>
+        <path d="M 45 16 Q 65 10 82 18" stroke="#6b3a52" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.4"/>
+
+        <!-- Ear left -->
+        <ellipse cx="10" cy="65" rx="7" ry="9" fill="#fce7f3" stroke="#f9c0d8" stroke-width="1"/>
+        <ellipse cx="10" cy="65" rx="4" ry="5.5" fill="#f9a8d4" opacity="0.5"/>
+        <!-- Ear right -->
+        <ellipse cx="120" cy="65" rx="7" ry="9" fill="#fce7f3" stroke="#f9c0d8" stroke-width="1"/>
+        <ellipse cx="120" cy="65" rx="4" ry="5.5" fill="#f9a8d4" opacity="0.5"/>
+
+        <!-- Eyebrows -->
+        <path d="M 32 45 Q 44 40 52 43" stroke="#2d1f28" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path d="M 78 43 Q 86 40 98 45" stroke="#2d1f28" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+        <!-- Eyes open group -->
+        <g id="eyes-open">
+          <!-- Left eye white -->
+          <ellipse cx="42" cy="58" rx="13" ry="14" fill="white" stroke="#f0c0d0" stroke-width="1"/>
+          <!-- Left iris -->
+          <circle cx="42" cy="59" r="8" fill="url(#irisGrad)"/>
+          <!-- Left pupil -->
+          <circle id="pupil-left" cx="42" cy="59" r="5" fill="url(#pupilGrad)"/>
+          <!-- Left shine big -->
+          <circle cx="45" cy="56" r="2.5" fill="white" opacity="0.9"/>
+          <!-- Left shine small -->
+          <circle cx="39" cy="61" r="1.2" fill="white" opacity="0.5"/>
+          <!-- Left lashes top -->
+          <path d="M 30 50 Q 34 47 38 49" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 36 47 Q 40 44 44 47" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 44 47 Q 48 45 51 48" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+          <!-- Right eye white -->
+          <ellipse cx="88" cy="58" rx="13" ry="14" fill="white" stroke="#f0c0d0" stroke-width="1"/>
+          <!-- Right iris -->
+          <circle cx="88" cy="59" r="8" fill="url(#irisGrad)"/>
+          <!-- Right pupil -->
+          <circle id="pupil-right" cx="88" cy="59" r="5" fill="url(#pupilGrad)"/>
+          <!-- Right shine big -->
+          <circle cx="91" cy="56" r="2.5" fill="white" opacity="0.9"/>
+          <!-- Right shine small -->
+          <circle cx="85" cy="61" r="1.2" fill="white" opacity="0.5"/>
+          <!-- Right lashes top -->
+          <path d="M 76 50 Q 80 47 84 49" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 82 47 Q 86 44 90 47" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+          <path d="M 90 47 Q 94 45 97 48" stroke="#2d1f28" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        </g>
+
+        <!-- Eyes covered group (hidden by default) -->
+        <g id="eyes-covered" style="display:none">
+          <!-- Left hand -->
+          <rect x="14" y="46" width="38" height="26" rx="13" fill="#fbb6ce" stroke="#e879a0" stroke-width="1.5"/>
+          <rect x="14" y="46" width="38" height="12" rx="8" fill="#f9a8d4"/>
+          <!-- Left finger lines -->
+          <line x1="24" y1="46" x2="24" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <line x1="33" y1="44" x2="33" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <line x1="42" y1="44" x2="42" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <!-- Left nails -->
+          <rect x="16" y="44" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="26" y="42" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="36" y="42" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="44" y="44" width="7" height="7" rx="3.5" fill="#e8409a"/>
+
+          <!-- Right hand -->
+          <rect x="78" y="46" width="38" height="26" rx="13" fill="#fbb6ce" stroke="#e879a0" stroke-width="1.5"/>
+          <rect x="78" y="46" width="38" height="12" rx="8" fill="#f9a8d4"/>
+          <!-- Right finger lines -->
+          <line x1="88" y1="46" x2="88" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <line x1="97" y1="44" x2="97" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <line x1="106" y1="44" x2="106" y2="72" stroke="#e879a0" stroke-width="1.2" opacity="0.5"/>
+          <!-- Right nails -->
+          <rect x="79" y="44" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="89" y="42" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="99" y="42" width="8" height="8" rx="4" fill="#e8409a"/>
+          <rect x="108" y="44" width="7" height="7" rx="3.5" fill="#e8409a"/>
+        </g>
+
+        <!-- Nose -->
+        <path d="M 62 68 Q 60 76 63 78 Q 67 80 70 78 Q 73 76 71 68" stroke="#e8a0b8" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+
         <!-- Blush -->
-        <ellipse cx="24" cy="72" rx="10" ry="6" fill="#f48fb1" opacity=".22"/>
-        <ellipse cx="86" cy="72" rx="10" ry="6" fill="#f48fb1" opacity=".22"/>
-        <!-- Lips -->
-        <path d="M 42 84 Q 48 80 55 82 Q 62 80 68 84 Q 62 92 55 90 Q 48 92 42 84Z" fill="#c2185b"/>
-        <path d="M 42 84 Q 55 87 68 84" stroke="#880e4f" stroke-width=".8" fill="none"/>
-        <path d="M 47 82 Q 55 80 63 82" stroke="rgba(255,255,255,.25)" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-        <!-- Small sparkle -->
-        <g transform="translate(88,22)" opacity=".7" filter="url(#glow)">
-          <line x1="0" y1="-5" x2="0" y2="5" stroke="#e91e8c" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="-5" y1="0" x2="5" y2="0" stroke="#e91e8c" stroke-width="1.5" stroke-linecap="round"/>
-          <line x1="-3" y1="-3" x2="3" y2="3" stroke="#e91e8c" stroke-width=".8" stroke-linecap="round"/>
-          <line x1="3" y1="-3" x2="-3" y2="3" stroke="#e91e8c" stroke-width=".8" stroke-linecap="round"/>
+        <ellipse cx="28" cy="78" rx="12" ry="7" fill="#f9a8d4" opacity="0.35" filter="url(#softBlur)"/>
+        <ellipse cx="102" cy="78" rx="12" ry="7" fill="#f9a8d4" opacity="0.35" filter="url(#softBlur)"/>
+
+        <!-- Mouth happy -->
+        <path id="mouth-happy" d="M 46 90 Q 55 100 74 90" stroke="#e8409a" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        <path id="mouth-happy2" d="M 46 90 Q 55 94 74 90" stroke="#fce7f3" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.6"/>
+
+        <!-- Mouth shy (hidden) -->
+        <path id="mouth-shy" d="M 49 92 Q 55 88 71 92" stroke="#e8409a" stroke-width="2.5" fill="none" stroke-linecap="round" style="display:none"/>
+
+        <!-- Small heart accessory -->
+        <path d="M 98 28 C 98 26 96 24 94 26 C 92 24 90 26 90 28 C 90 31 94 34 94 34 C 94 34 98 31 98 28 Z" fill="#e8409a" opacity="0.7"/>
+
+        <!-- Sparkle top left -->
+        <g opacity="0.6" transform="translate(20,22)">
+          <line x1="0" y1="-6" x2="0" y2="6" stroke="#f472b6" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="-6" y1="0" x2="6" y2="0" stroke="#f472b6" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="-4" y1="-4" x2="4" y2="4" stroke="#f472b6" stroke-width="0.8" stroke-linecap="round"/>
+          <line x1="4" y1="-4" x2="-4" y2="4" stroke="#f472b6" stroke-width="0.8" stroke-linecap="round"/>
         </g>
       </svg>
     </div>
 
-    <!-- Brand name -->
-    <div style="font-size:26px;font-weight:300;color:#fff;letter-spacing:.18em;text-transform:uppercase;font-family:'Cormorant Garamond',serif;margin-bottom:4px">Mi Tienda</div>
-    <div style="font-size:11px;color:rgba(194,24,91,.9);letter-spacing:.3em;text-transform:uppercase;font-weight:700;margin-bottom:36px">Belleza</div>
-
-    <!-- Card -->
-    <div style="width:100%;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:28px;padding:28px 24px;backdrop-filter:blur(20px);box-shadow:0 24px 64px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08)">
-
-      <div style="margin-bottom:18px">
-        <label style="display:block;font-size:10px;color:rgba(194,24,91,.8);font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Email</label>
-        <input id="login-nombre" type="email" placeholder="tu@email.com"
-          style="width:100%;padding:14px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;color:#fff;font-size:15px;font-family:'Nunito',sans-serif;outline:none;transition:all .2s"
+    <div style="font-size:28px;font-weight:800;color:#1a0d14;margin-bottom:4px;letter-spacing:-.04em;font-family:Playfair Display,serif">Bienvenida 💅</div>
+    <div style="font-size:14px;color:#9d7a8a;margin-bottom:28px;text-align:center">Ingresá a tu tienda</div>
+    <div style="width:100%;background:#fff;border-radius:24px;padding:28px 24px;box-shadow:0 8px 48px rgba(212,35,122,.12),0 2px 12px rgba(0,0,0,.04);border:1px solid #f0d4e4">
+      <div class="form-group">
+        <label style="color:#9d7a8a;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Email</label>
+        <input id="login-nombre" type="email" placeholder="tu@email.com" style="font-size:16px;padding:14px;border-color:#f0d6e4;border-radius:14px;background:#fdf6f9"
           oninput="loginFaceWatch()"
-          onfocus="this.style.borderColor='rgba(194,24,91,.6)';this.style.background='rgba(194,24,91,.08)'"
-          onblur="this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.06)'"
           onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
       </div>
-
-      <div style="margin-bottom:8px">
-        <label style="display:block;font-size:10px;color:rgba(194,24,91,.8);font-weight:800;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px">Contraseña</label>
+      <div class="form-group" style="margin-bottom:6px">
+        <label style="color:#9d7a8a;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Contraseña</label>
         <div style="position:relative">
-          <input id="login-pass" type="password" placeholder="••••••••"
-            style="width:100%;padding:14px 48px 14px 16px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;color:#fff;font-size:15px;font-family:'Nunito',sans-serif;outline:none;transition:all .2s"
+          <input id="login-pass" type="password" placeholder="••••••••" style="font-size:16px;padding:14px;padding-right:48px;border-color:#f0d6e4;border-radius:14px;background:#fdf6f9"
             oninput="loginFaceCover()"
-            onfocus="loginFaceCover();this.style.borderColor='rgba(194,24,91,.6)';this.style.background='rgba(194,24,91,.08)'"
-            onblur="loginFaceUncover();this.style.borderColor='rgba(255,255,255,.1)';this.style.background='rgba(255,255,255,.06)'"
+            onfocus="loginFaceCover()"
+            onblur="loginFaceUncover()"
             onkeydown="if(event.key==='Enter'&&typeof entrarApp==='function')entrarApp()">
-          <button id="btn-toggle-pass" onclick="togglePass()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:rgba(255,255,255,.3);cursor:pointer;font-size:18px;display:flex;align-items:center"><i class="ti ti-eye"></i></button>
+          <button id="btn-toggle-pass" onclick="togglePass()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:#c4a0b2;cursor:pointer;font-size:18px;display:flex;align-items:center"><i class="ti ti-eye"></i></button>
         </div>
       </div>
-
-      <div id="login-error" style="color:#f87171;font-size:12px;text-align:center;margin-bottom:10px;display:none;background:rgba(220,38,38,.12);padding:8px 12px;border-radius:10px;border:1px solid rgba(220,38,38,.2)"></div>
-
-      <button class="btn btn-primary btn-full"
-        style="margin-top:16px;padding:16px;font-size:15px;font-weight:700;border-radius:16px;background:linear-gradient(135deg,#e91e8c,#c2185b,#880e4f);box-shadow:0 8px 28px rgba(194,24,91,.45),0 0 40px rgba(194,24,91,.15);letter-spacing:.04em;text-transform:uppercase;font-size:13px"
-        onclick="if(typeof entrarApp==='function')entrarApp()">
-        Ingresar
-      </button>
+      <div id="login-error" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;display:none;background:#fee2e2;padding:8px 12px;border-radius:10px"></div>
+      <button class="btn btn-primary btn-full" style="margin-top:10px;padding:15px;font-size:15px;font-weight:700;border-radius:14px;background:linear-gradient(135deg,#e8409a,#d63384);box-shadow:0 6px 20px rgba(232,64,154,.3)" onclick="if(typeof entrarApp==='function')entrarApp()">Ingresar</button>
     </div>
-
     <div style="text-align:center;margin-top:20px">
-      <button onclick="if(typeof mostrarRegistro==='function')mostrarRegistro()" style="background:none;border:none;color:rgba(255,255,255,.35);font-size:13px;cursor:pointer;font-family:'Nunito',sans-serif">¿Primera vez? <span style="color:#e91e8c;font-weight:700">Crear cuenta</span></button>
+      <button onclick="if(typeof mostrarRegistro==='function')mostrarRegistro()" style="background:none;border:none;color:#9d7a8a;font-size:13px;cursor:pointer">¿Primera vez? <span style="color:#e8409a;font-weight:600;text-decoration:underline">Crear cuenta</span></button>
     </div>
   </div>
 </div>
@@ -3315,7 +3343,7 @@ function startApp(){
       </div>
     </div>
     <div class="form-group">
-      <label>Dirección secundaria</label>
+      <label>Dirección secundaria <span style="font-size:11px;color:var(--text3)">(casa de la mamá, trabajo, etc.)</span></label>
       <div style="display:flex;gap:8px">
         <input id="cli-dir2" placeholder="Ej: San Martín 456" style="flex:1">
         <button type="button" class="btn btn-secondary btn-sm" onclick="verDireccionEnMaps2()" style="flex-shrink:0"><i class="ti ti-map-pin"></i> Ver</button>
