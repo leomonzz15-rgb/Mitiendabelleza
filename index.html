@@ -106,17 +106,17 @@
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   :root{
-    --bg:#faf7fb;--bg2:#ffffff;--bg3:#f7f0f9;--bg4:#f0e6f4;
-    --rose:#c2186e;--rose2:#a0125c;--rose3:#7d0d49;--rose-light:#e879aa;
-    --rose-soft:rgba(194,24,110,.09);
-    --text:#18080f;--text2:#5c2e4a;--text3:#a87898;
-    --border:#eed4e6;--border2:#e0c0d6;
+    --bg:#edeae7;--bg2:#f4f1ee;--bg3:#e8e4e0;--bg4:#dfd9d3;
+    --rose:#c2185b;--rose2:#ad1457;--rose3:#880e4f;--rose-light:#f48fb1;
+    --rose-soft:rgba(194,24,91,.08);
+    --text:#1c1917;--text2:#57534e;--text3:#a8a29e;
+    --border:#d6d0ca;--border2:#c8c2bb;
     --green:#059669;--red:#dc2626;--amber:#d97706;--blue:#4338ca;
-    --card-glow:0 1px 10px rgba(194,24,110,.05),0 3px 20px rgba(0,0,0,.04);
-    --card-glow-hover:0 2px 18px rgba(194,24,110,.11),0 6px 28px rgba(0,0,0,.07);
-    --radius:18px;--radius-sm:12px;--radius-xs:8px;
-    --font:'DM Sans',system-ui,sans-serif;
-    --font-display:'Playfair Display',serif;
+    --card-glow:0 1px 4px rgba(0,0,0,.06),0 4px 16px rgba(0,0,0,.06);
+    --card-glow-hover:0 4px 20px rgba(0,0,0,.10),0 8px 32px rgba(0,0,0,.08);
+    --radius:20px;--radius-sm:14px;--radius-xs:9px;
+    --font:'Nunito',system-ui,sans-serif;
+    --font-display:'Cormorant Garamond',serif;
   }
   body.dark{
     --bg:#0a0608;--bg2:#120a0f;--bg3:#1a1016;--bg4:#22141c;
@@ -130,8 +130,8 @@
   }
   body.dark input,body.dark select,body.dark textarea{background:var(--bg3);color:var(--text);}
   body.dark select option{background:var(--bg3);}
-  body.dark #header{background:rgba(12,7,9,.92);border-bottom-color:var(--border);}
-  body.dark #nav{background:rgba(12,7,9,.96);}
+  body.dark #header{background:rgba(237,234,231,.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);box-shadow:0 1px 12px rgba(0,0,0,.08);}
+  body.dark #nav{background:rgba(237,234,231,.97);backdrop-filter:blur(20px);border-top:1px solid var(--border);box-shadow:0 -1px 12px rgba(0,0,0,.07);}
   body.dark .btn-secondary{background:var(--bg3);border-color:var(--border2);}
   html,body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;-webkit-font-smoothing:antialiased;}
   #app{display:flex;flex-direction:column;min-height:100vh;max-width:480px;margin:0 auto}
@@ -287,7 +287,7 @@
   .tab:not(.active):hover{border-color:var(--rose);color:var(--rose);}
 
   /* AGENDA */
-  .agenda-item{border-left:4px solid var(--rose);padding:14px 14px 14px 16px;margin-bottom:12px;background:var(--bg2);border-radius:0 var(--radius-sm) var(--radius-sm) 0;border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);box-shadow:var(--card-glow);transition:box-shadow .2s;}
+  .agenda-item{border-left:4px solid var(--rose);padding:16px;margin-bottom:12px;background:var(--bg2);border-radius:var(--radius-sm);border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,.06);transition:all .2s;}
   .agenda-item:hover{box-shadow:var(--card-glow-hover);}
 
   /* ACCENT LINE ON PAGE TITLES */
@@ -316,6 +316,16 @@ let state = {
 };
 
 const fmt = n => '$' + Number(n||0).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});
+function fechaHoyAR(){
+  const now=new Date();
+  const ar=new Date(now.getTime()-3*60*60*1000);
+  return ar.toISOString().split('T')[0];
+}
+function nowISOAR(){
+  const now=new Date();
+  const ar=new Date(now.getTime()-3*60*60*1000);
+  return ar.toISOString();
+}
 function fmtFecha(str){
   if(!str) return 'Sin fecha';
   try{
@@ -734,7 +744,7 @@ async function confirmarVenta(){
   }
   const nota=document.getElementById('cart-nota')?.value?.trim()||'';
   const venta={
-    fecha:new Date().toISOString(),
+    fecha:nowISOAR(),
     items:[...state.cart],
     subtotal:sub,descuento:desc,total,
     clienteId:cliId,formaPago,pagosDetalle,
@@ -769,10 +779,10 @@ async function confirmarVenta(){
       if(esCuentaCte){
         // Suma deuda al saldo
         cli.saldo=(cli.saldo||0)+total;
-        cli.movimientos.push({tipo:'deuda',monto:total,fecha:new Date().toISOString(),desc:'Venta #'+venta.nro+' (Cta. Cte.)',ventaId:saved?._id});
+        cli.movimientos.push({tipo:'deuda',monto:total,fecha:nowISOAR(),desc:'Venta #'+venta.nro+' (Cta. Cte.)',ventaId:saved?._id});
       } else {
         // Venta pagada - registrar igualmente en historial pero sin sumar saldo
-        cli.movimientos.push({tipo:'venta',monto:total,fecha:new Date().toISOString(),desc:'Venta #'+venta.nro,formaPago});
+        cli.movimientos.push({tipo:'venta',monto:total,fecha:nowISOAR(),desc:'Venta #'+venta.nro,formaPago});
       }
       await dbUpdate('clientes',cli._id,cli);
     }
@@ -784,6 +794,167 @@ async function confirmarVenta(){
   renderVentaList();renderArticulos();
   toast('Venta confirmada ✓');
   mostrarTicket(state.lastVenta);
+}
+
+
+// Generar presupuesto desde el carrito
+function generarPresupuestoDesdeCarrito(){
+  if(!state.cart.length){toast('El carrito está vacío');return;}
+  const sub=state.cart.reduce((s,c)=>s+c.precio*c.qty,0);
+  const pct=parseFloat(document.getElementById('cart-desc').value)||0;
+  const descMonto=sub*pct/100;
+  const totalTarjeta=sub-descMonto;
+  const totalEfectivo=sub*0.9-descMonto; // -10% efectivo/transferencia
+  const totalEfectivoConDesc=pct>0 ? sub*(1-pct/100)*0.9 : sub*0.9;
+  const cliId=document.getElementById('cart-cli').value;
+  const cli=state.clientes.find(c=>String(c._id)===String(cliId));
+  const nota=document.getElementById('cart-nota')?.value?.trim()||'';
+  
+  // Build modal HTML
+  let modalHtml=`
+    <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center" id="modal-presu-carrito">
+      <div style="background:var(--bg2);border-radius:28px 28px 0 0;width:100%;max-width:480px;padding:24px 20px 36px;max-height:90vh;overflow-y:auto">
+        <div style="font-size:18px;font-weight:900;color:var(--rose);font-style:italic;margin-bottom:16px">📋 Presupuesto</div>
+        
+        <div style="background:var(--bg3);border-radius:14px;padding:14px;margin-bottom:16px">
+          <div style="font-size:11px;color:var(--text3);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Detalle</div>
+          ${state.cart.map(c=>`
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;border-bottom:1px solid var(--border)">
+              <span>${c.qty}x ${c.nombre}</span>
+              <span style="font-weight:700">$${(c.precio*c.qty).toLocaleString('es-AR')}</span>
+            </div>`).join('')}
+          ${nota?`<div style="font-size:11px;color:var(--text2);margin-top:8px">📝 ${nota}</div>`:''}
+        </div>
+
+        <div style="background:var(--bg3);border-radius:14px;padding:14px;margin-bottom:16px">
+          <div style="font-size:11px;color:var(--text3);font-weight:800;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px">Precios</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px">💳 Tarjeta${pct>0?' (desc. '+pct+'%)':''}</span>
+            <span style="font-size:16px;font-weight:900;color:var(--text)">$${totalTarjeta.toLocaleString('es-AR')}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0">
+            <span style="font-size:13px">💵 Efectivo / Transferencia <span style="background:rgba(5,150,105,.12);color:var(--green);font-size:10px;font-weight:800;padding:2px 6px;border-radius:8px">-10%</span>${pct>0?' + desc. '+pct+'%':''}</span>
+            <span style="font-size:16px;font-weight:900;color:var(--green)">$${totalEfectivoConDesc.toLocaleString('es-AR')}</span>
+          </div>
+        </div>
+
+        ${cli?`<div style="font-size:12px;color:var(--text2);margin-bottom:12px;text-align:center">Para: <strong>${cli.nombre}</strong></div>`:''}
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-primary btn-full" onclick="presuCarritoWhatsapp()" style="background:linear-gradient(135deg,#25d366,#128c3e);box-shadow:0 4px 16px rgba(37,211,102,.3)">
+            <i class="ti ti-brand-whatsapp"></i> Enviar por WhatsApp
+          </button>
+          <button class="btn btn-secondary btn-full" onclick="presuCarritoPDF()">
+            <i class="ti ti-file-invoice"></i> Generar PDF
+          </button>
+          <button class="btn btn-primary btn-full" onclick="guardarPresuDesdeCarrito()">
+            <i class="ti ti-device-floppy"></i> Guardar presupuesto
+          </button>
+          <button class="btn btn-secondary btn-full" onclick="document.getElementById('modal-presu-carrito').remove()">Cerrar</button>
+        </div>
+      </div>
+    </div>`;
+  
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  // Store data for functions
+  window._presuCarritoData = {
+    items: [...state.cart],
+    sub, pct, totalTarjeta, totalEfectivoConDesc, cli, nota,
+    cliId
+  };
+}
+
+function presuCarritoWhatsapp(){
+  const d=window._presuCarritoData;
+  if(!d) return;
+  let txt='*PRESUPUESTO - Mi Tienda Belleza*\n';
+  txt+=new Date().toLocaleDateString('es-AR')+'\n';
+  if(d.cli) txt+='Para: *'+d.cli.nombre+'*\n';
+  txt+='\n*Detalle:*\n';
+  d.items.forEach(it=>{txt+=it.qty+'x '+it.nombre+' → $'+(it.precio*it.qty).toLocaleString('es-AR')+'\n';});
+  if(d.nota) txt+='\n📝 '+d.nota+'\n';
+  txt+='\n💳 *Tarjeta'+(d.pct>0?' (-'+d.pct+'%)':'')+': $'+d.totalTarjeta.toLocaleString('es-AR')+'*';
+  txt+='\n💵 *Efectivo/Transferencia (-10%'+(d.pct>0?'+'+d.pct+'%':'')+'):* $'+d.totalEfectivoConDesc.toLocaleString('es-AR');
+  txt+='\n\n_Gracias por elegirnos ♡_';
+  if(d.cli?.telefono){
+    const tel=d.cli.telefono.replace(/\D/g,'');
+    window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(txt),'_blank');
+  } else {
+    window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
+  }
+}
+
+function presuCarritoPDF(){
+  const d=window._presuCarritoData;
+  if(!d) return;
+  const fecha=new Date().toLocaleDateString('es-AR');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{font-family:Arial,sans-serif;max-width:420px;margin:0 auto;padding:24px;color:#222}
+    h2{text-align:center;color:#c2185b;margin-bottom:4px;font-size:20px}
+    .sub{text-align:center;color:#888;font-size:12px;margin-bottom:4px}
+    .cli{text-align:center;font-weight:bold;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px}
+    td,th{padding:8px;border-bottom:1px solid #eee;font-size:13px}
+    th{background:#fff0f5;color:#c2185b;font-size:11px;text-align:left}
+    .row-tarjeta td{font-weight:bold;font-size:15px;border-top:2px solid #c2185b;padding-top:12px}
+    .row-efec td{font-weight:bold;font-size:15px;color:#16a34a;border-bottom:none}
+    .footer{text-align:center;color:#aaa;font-size:11px;margin-top:20px}
+  </style></head><body>
+  <h2>💅 Mi Tienda Belleza</h2>
+  <div class="sub">Presupuesto · ${fecha}</div>
+  ${d.cli?'<div class="cli">Para: '+d.cli.nombre+'</div>':'<br>'}
+  <table>
+    <tr><th>Artículo</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th></tr>
+    ${d.items.map(it=>'<tr><td>'+it.nombre+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right">$'+(it.precio*it.qty).toLocaleString('es-AR')+'</td></tr>').join('')}
+    ${d.nota?'<tr><td colspan="3" style="color:#888;font-size:11px">📝 '+d.nota+'</td></tr>':''}
+    <tr class="row-tarjeta">
+      <td colspan="2">💳 Tarjeta${d.pct>0?' (-'+d.pct+'%)':''}</td>
+      <td style="text-align:right">$${d.totalTarjeta.toLocaleString('es-AR')}</td>
+    </tr>
+    <tr class="row-efec">
+      <td colspan="2">💵 Efectivo / Transferencia <span style="background:#dcfce7;color:#16a34a;border-radius:8px;padding:1px 6px;font-size:10px">-10%${d.pct>0?'+'+d.pct+'%':''}</span></td>
+      <td style="text-align:right">$${d.totalEfectivoConDesc.toLocaleString('es-AR')}</td>
+    </tr>
+  </table>
+  <div class="footer">Gracias por elegirnos ♡</div>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(()=>w.print(),400);
+}
+
+async function guardarPresuDesdeCarrito(){
+  const d=window._presuCarritoData;
+  if(!d) return;
+  const obj={
+    fecha:nowISOAR(),
+    items:d.items,
+    subtotal:d.sub,
+    descPct:d.pct,
+    totalTarjeta:d.totalTarjeta,
+    totalEfectivo:d.totalEfectivoConDesc,
+    clienteId:d.cliId||'',
+    clienteNombre:d.cli?.nombre||'',
+    nota:d.nota,
+    estado:'pendiente'
+  };
+  const saved=await dbInsert('presupuestos',obj);
+  if(saved){
+    state.presupuestos.unshift(saved);
+    // Add to client movimientos
+    if(d.cliId){
+      const cli=state.clientes.find(c=>String(c._id)===String(d.cliId));
+      if(cli){
+        if(!cli.movimientos) cli.movimientos=[];
+        cli.movimientos.push({tipo:'presupuesto',monto:d.totalTarjeta,fecha:nowISOAR(),desc:'Presupuesto #'+saved._id.slice(-4).toUpperCase(),presuId:saved._id});
+        await dbUpdate('clientes',cli._id,cli);
+      }
+    }
+    document.getElementById('modal-presu-carrito')?.remove();
+    toast('Presupuesto guardado ✓');
+  }
 }
 
 function mostrarTicket(v){
@@ -1005,7 +1176,7 @@ function openFicha(id){
       const movs=[];
       ventas.forEach(v=>movs.push({tipo:v.formaPago==='cuenta_corriente'||v.formaPago?.includes('cuenta_corriente')?'deuda':'venta',fecha:v.fecha,desc:'Venta #'+(v.nro||''),monto:v.total,sub:v.formaPago,id:v._id}));
       const presus=state.presupuestos.filter(p=>p.clienteId===id);
-      presus.forEach(p=>movs.push({tipo:p.estado==='convertido'?'presupuesto-conv':'presupuesto',fecha:p.fecha,desc:'Presupuesto',monto:p.total,sub:p.estado==='convertido'?'Convertido en venta':'Pendiente',id:p._id}));
+      presus.forEach(p=>movs.push({tipo:p.estado==='convertido'?'presupuesto-conv':'presupuesto',fecha:p.fecha,desc:'Presupuesto #'+p._id.slice(-4).toUpperCase(),monto:p.totalTarjeta||p.total||0,sub:p.estado==='convertido'?'Convertido en venta':'Pendiente · Tarjeta: $'+(p.totalTarjeta||0).toLocaleString('es-AR')+' / Efec: $'+(p.totalEfectivo||0).toLocaleString('es-AR'),id:p._id}));
       // Pagos registrados (cobros de deuda)
       (c.movimientos||[]).filter(m=>m.tipo==='pago').forEach(m=>movs.push({tipo:'pago',fecha:m.fecha,desc:m.desc||'Pago',monto:m.monto,metodo:m.metodo||'',id:null}));
       movs.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
@@ -1028,6 +1199,9 @@ function openFicha(id){
         html+='<div style="display:flex;align-items:center;gap:8px">';
         html+='<div style="font-weight:800;color:'+color+'">'+(esPago?'-':'+')+fmt(m.monto)+'</div>';
         if((esVenta||esDeuda)&&m.id) html+='<button style="background:none;border:1px solid var(--border);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--text2)" data-vid="'+m.id+'" onclick="verTicketVenta(this.dataset.vid)">🧾</button>';
+        if(m.tipo==='presupuesto'&&m.id){
+          html+='<button style="background:none;border:1px solid var(--rose);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer;color:var(--rose)" onclick="verPresuDesdeMovimiento(\''+m.id+'\')" title="Ver presupuesto">📋</button>';
+        }
         html+='</div></div>';
         return html;
       }).join('');
@@ -1066,7 +1240,7 @@ async function guardarPagoCli(){
     tipo:'pago',
     monto,
     metodo,
-    fecha:new Date().toISOString(),
+    fecha:nowISOAR(),
     desc:(nota||'Pago')+' — '+(metodoLabel[metodo]||metodo)
   });
   const {_id,...cliSin}=cli;
@@ -1827,7 +2001,7 @@ function openEnvioModal(editId){
   const sel=document.getElementById('envio-cli');
   sel.innerHTML='<option value="">Sin cliente</option>'+state.clientes.map(c=>`<option value="${c._id}">${c.nombre}</option>`).join('');
   document.getElementById('envio-dir').value='';
-  document.getElementById('envio-fecha').value=new Date().toISOString().split('T')[0];
+  document.getElementById('envio-fecha').value=fechaHoyAR();
   document.getElementById('envio-nota').value='';
   document.getElementById('envio-dir-opciones').style.display='none';
   document.getElementById('envio-dir-btns').innerHTML='';
@@ -1900,7 +2074,22 @@ async function setEstadoEnvio(id, estado){
   if(!env) return;
   env.estado=estado;
   env.completado=(estado==='entregado');
-  await dbUpdate('envios',id,env);renderAgenda();
+  await dbUpdate('envios',id,env);
+  // Si pasa a en_camino y el cliente tiene teléfono, mandar WhatsApp
+  if(estado==='en_camino'){
+    const cli=state.clientes.find(c=>String(c._id)===String(env.clienteId));
+    if(cli?.telefono){
+      const tel=cli.telefono.replace(/\D/g,'');
+      const dir=env.direccion||cli.direccion||'';
+      let msg='Hola '+cli.nombre+' 👋\n';
+      msg+='¡Estamos yendo a llevarte tu pedido! 🛵💨\n';
+      if(dir) msg+='📍 Lo llevamos a: '+dir+'\n';
+      if(env.nota) msg+='📝 '+env.nota+'\n';
+      msg+='\n_Mi Tienda Belleza_ 💅';
+      window.open('https://wa.me/54'+tel+'?text='+encodeURIComponent(msg),'_blank');
+    }
+  }
+  renderAgenda();
 }
 function ciclarEstado(id){
   const env=state.envios.find(e=>e._id===id);
@@ -1923,7 +2112,7 @@ async function deleteEnvio(id){
   state.envios=state.envios.filter(e=>e._id!==id);renderAgenda();
 }
 function renderAgenda(){
-  const today=new Date().toISOString().split('T')[0];
+  const today=fechaHoyAR();
   const ORDER={pendiente:0,en_camino:1,entregado:2,cancelado:3};
   const filtered=_envioFiltro==='todos' ? state.envios : state.envios.filter(e=>getEstado(e)===_envioFiltro);
   const sorted=[...filtered].sort((a,b)=>{
@@ -2218,7 +2407,7 @@ async function guardarPresupuesto(){
   const obj={
     cliente:cliNombre||'Sin nombre',
     clienteId,
-    fecha:new Date().toISOString(),
+    fecha:nowISOAR(),
     items,desc,subtotal,total:conDesc,
     estado:'pendiente'
   };
@@ -2230,7 +2419,7 @@ async function guardarPresupuesto(){
       const cli=state.clientes.find(c=>c._id===clienteId);
       if(cli){
         if(!cli.movimientos) cli.movimientos=[];
-        cli.movimientos.push({tipo:'presupuesto',monto:conDesc,fecha:new Date().toISOString(),desc:'Presupuesto #'+saved._id.slice(-4).toUpperCase(),presuId:saved._id});
+        cli.movimientos.push({tipo:'presupuesto',monto:conDesc,fecha:nowISOAR(),desc:'Presupuesto #'+saved._id.slice(-4).toUpperCase(),presuId:saved._id});
         await dbUpdate('clientes',clienteId,cli);
       }
     }
@@ -2340,6 +2529,140 @@ function presuGuardadoPDF(id){
   w.document.write(html);
   w.document.close();
 }
+
+function verPresuDesdeMovimiento(id){
+  const p=state.presupuestos.find(x=>String(x._id)===String(id));
+  if(!p){toast('Presupuesto no encontrado');return;}
+  const cli=state.clientes.find(c=>String(c._id)===String(p.clienteId));
+  const fecha=new Date(p.fecha).toLocaleDateString('es-AR');
+  const convertido=p.estado==='convertido';
+  
+  let html=`
+    <div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:flex-end;justify-content:center" id="modal-ver-presu">
+      <div style="background:var(--bg2);border-radius:28px 28px 0 0;width:100%;max-width:480px;padding:24px 20px 36px;max-height:90vh;overflow-y:auto">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <div style="font-size:18px;font-weight:900;color:var(--rose);font-style:italic">📋 Presupuesto</div>
+          ${convertido?'<span style="background:rgba(5,150,105,.12);color:var(--green);font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px">CONVERTIDO</span>':'<span style="background:var(--rose-soft);color:var(--rose);font-size:11px;font-weight:800;padding:4px 10px;border-radius:20px">PENDIENTE</span>'}
+        </div>
+        
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px">${fecha}${cli?' · Para: <strong>'+cli.nombre+'</strong>':''}</div>
+
+        <div style="background:var(--bg3);border-radius:14px;padding:14px;margin-bottom:14px">
+          ${(p.items||[]).map(it=>`
+            <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-bottom:1px solid var(--border)">
+              <span>${it.qty}x ${it.nombre}</span>
+              <span style="font-weight:700">$${(it.precio*it.qty).toLocaleString('es-AR')}</span>
+            </div>`).join('')}
+          ${p.nota?`<div style="font-size:11px;color:var(--text2);margin-top:8px">📝 ${p.nota}</div>`:''}
+        </div>
+
+        <div style="background:var(--bg3);border-radius:14px;padding:14px;margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:13px">💳 Tarjeta</span>
+            <span style="font-weight:900;font-size:15px">$${(p.totalTarjeta||0).toLocaleString('es-AR')}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:6px 0">
+            <span style="font-size:13px">💵 Efectivo / Transferencia</span>
+            <span style="font-weight:900;font-size:15px;color:var(--green)">$${(p.totalEfectivo||0).toLocaleString('es-AR')}</span>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn btn-secondary btn-full" onclick="presuGuardadoWhatsapp2('${p._id}')" style="background:linear-gradient(135deg,rgba(37,211,102,.1),rgba(18,140,62,.1));border-color:#25d366;color:#16a34a">
+            <i class="ti ti-brand-whatsapp"></i> Enviar por WhatsApp
+          </button>
+          <button class="btn btn-secondary btn-full" onclick="presuGuardadoPDF2('${p._id}')">
+            <i class="ti ti-file-invoice"></i> Generar PDF
+          </button>
+          ${!convertido?`
+          <button class="btn btn-primary btn-full" onclick="convertirPresupuesto2('${p._id}')">
+            <i class="ti ti-check"></i> Convertir en venta
+          </button>
+          <button class="btn btn-danger btn-full" onclick="eliminarPresupuesto('${p._id}')">
+            <i class="ti ti-trash"></i> Eliminar presupuesto
+          </button>`:''}
+          <button class="btn btn-secondary btn-full" onclick="document.getElementById('modal-ver-presu').remove()">Cerrar</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function presuGuardadoWhatsapp2(id){
+  const p=state.presupuestos.find(x=>String(x._id)===String(id));
+  if(!p) return;
+  const cli=state.clientes.find(c=>String(c._id)===String(p.clienteId));
+  const fecha=new Date(p.fecha).toLocaleDateString('es-AR');
+  let txt='*PRESUPUESTO - Mi Tienda Belleza*\n'+fecha+'\n';
+  if(cli) txt+='Para: *'+cli.nombre+'*\n';
+  txt+='\n*Detalle:*\n';
+  (p.items||[]).forEach(it=>{txt+=it.qty+'x '+it.nombre+' → $'+(it.precio*it.qty).toLocaleString('es-AR')+'\n';});
+  if(p.nota) txt+='\n📝 '+p.nota+'\n';
+  txt+='\n💳 *Tarjeta: $'+(p.totalTarjeta||0).toLocaleString('es-AR')+'*';
+  txt+='\n💵 *Efectivo/Transferencia (-10%): $'+(p.totalEfectivo||0).toLocaleString('es-AR')+'*';
+  txt+='\n\n_Gracias por elegirnos ♡_';
+  const tel=cli?.telefono?.replace(/\D/g,'')||'';
+  window.open(tel?'https://wa.me/'+tel+'?text='+encodeURIComponent(txt):'https://wa.me/?text='+encodeURIComponent(txt),'_blank');
+}
+
+function presuGuardadoPDF2(id){
+  const p=state.presupuestos.find(x=>String(x._id)===String(id));
+  if(!p) return;
+  const cli=state.clientes.find(c=>String(c._id)===String(p.clienteId));
+  const fecha=new Date(p.fecha).toLocaleDateString('es-AR');
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+    body{font-family:Arial,sans-serif;max-width:420px;margin:0 auto;padding:24px;color:#222}
+    h2{text-align:center;color:#c2185b;margin-bottom:4px}
+    .sub{text-align:center;color:#888;font-size:12px;margin-bottom:4px}
+    .cli{text-align:center;font-weight:bold;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin-bottom:16px}
+    td,th{padding:8px;border-bottom:1px solid #eee;font-size:13px}
+    th{background:#fff0f5;color:#c2185b;font-size:11px;text-align:left}
+    .row-t td{font-weight:bold;font-size:15px;border-top:2px solid #c2185b;padding-top:12px}
+    .row-e td{font-weight:bold;font-size:15px;color:#16a34a;border-bottom:none}
+    .footer{text-align:center;color:#aaa;font-size:11px;margin-top:20px}
+  </style></head><body>
+  <h2>💅 Mi Tienda Belleza</h2>
+  <div class="sub">Presupuesto · ${fecha}</div>
+  ${cli?'<div class="cli">Para: '+cli.nombre+'</div>':'<br>'}
+  <table>
+    <tr><th>Artículo</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th></tr>
+    ${(p.items||[]).map(it=>'<tr><td>'+it.nombre+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right">$'+(it.precio*it.qty).toLocaleString('es-AR')+'</td></tr>').join('')}
+    ${p.nota?'<tr><td colspan="3" style="color:#888;font-size:11px">📝 '+p.nota+'</td></tr>':''}
+    <tr class="row-t"><td colspan="2">💳 Tarjeta</td><td style="text-align:right">$${(p.totalTarjeta||0).toLocaleString('es-AR')}</td></tr>
+    <tr class="row-e"><td colspan="2">💵 Efectivo / Transferencia <span style="background:#dcfce7;color:#16a34a;border-radius:8px;padding:1px 6px;font-size:10px">-10%</span></td><td style="text-align:right">$${(p.totalEfectivo||0).toLocaleString('es-AR')}</td></tr>
+  </table>
+  <div class="footer">Gracias por elegirnos ♡</div>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html);w.document.close();
+  setTimeout(()=>w.print(),400);
+}
+
+async function convertirPresupuesto2(id){
+  const p=state.presupuestos.find(x=>String(x._id)===String(id));
+  if(!p){toast('No encontrado');return;}
+  // Load cart with presupuesto items
+  state.cart=p.items.map(it=>({...it}));
+  state._presuOrigen=id;
+  document.getElementById('modal-ver-presu')?.remove();
+  closeModal('modal-ficha');
+  // Open carrito
+  const sel=document.getElementById('cart-cli');
+  if(sel&&p.clienteId) sel.value=p.clienteId;
+  renderCartItems();renderCartSummary();
+  openModal('modal-carrito');
+  toast('Presupuesto cargado → finalizá la venta ✓');
+}
+
+async function eliminarPresupuesto(id){
+  if(!confirm('¿Eliminar este presupuesto?')) return;
+  await dbDelete('presupuestos',id);
+  state.presupuestos=state.presupuestos.filter(p=>String(p._id)!==String(id));
+  document.getElementById('modal-ver-presu')?.remove();
+  toast('Presupuesto eliminado');
+}
+
 async function convertirPresupuesto(id){
   const p=state.presupuestos.find(x=>String(x._id)===String(id));
   if(!p){toast('No se encontró el presupuesto');return;}
@@ -2528,7 +2851,7 @@ async function cobrarDeudaCliente(id){
   const monto=parseFloat(prompt('¿Cuánto abona '+cli.nombre+'?'));
   if(!monto||monto<=0){return;}
   if(!cli.movimientos) cli.movimientos=[];
-  cli.movimientos.push({tipo:'pago',monto,fecha:new Date().toISOString(),desc:'Pago a cuenta'});
+  cli.movimientos.push({tipo:'pago',monto,fecha:nowISOAR(),desc:'Pago a cuenta'});
   cli.saldo=(cli.saldo||0)-monto;
   const {_id,...cliSin}=cli;
   await dbUpdate('clientes',cli._id,cliSin);
@@ -2567,7 +2890,7 @@ function exportarArticulosExcel(){
 // ══ RESPALDAR TODOS LOS DATOS (JSON) ════════════════
 function respaldarDatos(){
   const backup={
-    fecha:new Date().toISOString(),
+    fecha:nowISOAR(),
     version:1,
     articulos:state.articulos,
     clientes:state.clientes,
@@ -2925,16 +3248,18 @@ function startApp(){
   <div id="header">
     <img src="https://mitiendabelleza.com/wp-content/uploads/2024/01/logo-mi-tienda-belleza.png" alt="Mi Tienda Belleza" onerror="this.style.display='none';document.getElementById('header-title').style.display='block'">
     <span id="header-title">Mi Tienda Belleza</span>
-    <div style="text-align:right">
-      <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end">
-        <div id="header-usuario" style="font-size:12px;color:var(--rose2);font-weight:600"></div>
-        <button onclick="openNotifStock()" id="btn-notif" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;position:relative" title="Alertas de stock">
-          🔔<span id="notif-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#dc2626;color:#fff;font-size:8px;font-weight:800;min-width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;padding:0 2px;border:1.5px solid var(--bg2)">0</span>
-        </button>
-        <button onclick="toggleDarkMode()" id="btn-dark" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px" title="Modo oscuro/claro">🌙</button>
-        <button onclick="cerrarSesion()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px" title="Cerrar sesión">🚪</button>
+    <div style="display:flex;align-items:center;gap:8px">
+      <!-- Caja status pill -->
+      <div id="caja-status" style="font-size:10px;font-weight:700;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 10px;white-space:nowrap">Caja cerrada</div>
+      <!-- Notif bell -->
+      <button onclick="openNotifStock()" id="btn-notif" style="background:var(--bg3);border:1px solid var(--border);border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;font-size:15px" title="Alertas de stock">
+        🔔<span id="notif-badge" style="display:none;position:absolute;top:-3px;right:-3px;background:#dc2626;color:#fff;font-size:8px;font-weight:800;min-width:14px;height:14px;border-radius:50%;align-items:center;justify-content:center;padding:0 2px;border:1.5px solid var(--bg2)">0</span>
+      </button>
+      <!-- User + logout -->
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 10px;display:flex;align-items:center;gap:6px">
+        <div id="header-usuario" style="font-size:11px;color:var(--rose2);font-weight:800"></div>
+        <button onclick="cerrarSesion()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0;line-height:1" title="Cerrar sesión">🚪</button>
       </div>
-      <div id="caja-status" style="font-size:11px;color:var(--text3)">Caja cerrada</div>
     </div>
   </div>
   <div id="content">
@@ -3282,6 +3607,9 @@ function startApp(){
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-secondary btn-full" onclick="closeModal('modal-carrito')">Volver</button>
       <button class="btn btn-primary btn-full" onclick="confirmarVenta()">✓ Finalizar venta</button>
+    </div>
+    <div style="margin-top:8px">
+      <button class="btn btn-secondary btn-full" onclick="generarPresupuestoDesdeCarrito()" style="border-color:var(--rose);color:var(--rose)"><i class="ti ti-file-invoice"></i> Generar presupuesto</button>
     </div>
   </div>
 </div>
