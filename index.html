@@ -151,212 +151,33 @@
 
   /* NAV */
   #nav{
-    position:fixed;bottom:0;left:50%;transform:translateX(-50%);
-    width:100%;max-width:480px;
-    background:rgba(253,248,251,.96);
-    backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+    position:fixed;bottom:0;left:0;right:0;
+    display:flex;justify-content:space-around;align-items:stretch;
+    background:var(--bg2);
     border-top:1px solid var(--border);
-    display:flex;
-    padding-bottom:env(safe-area-inset-bottom);
+    padding:0;padding-bottom:env(safe-area-inset-bottom,0);
     z-index:100;
+    box-shadow:0 -4px 24px rgba(0,0,0,.07);
+    height:64px;
   }
   .nav-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    padding:10px 2px 8px;gap:3px;border:none;background:none;
-    color:var(--text3);cursor:pointer;font-size:9px;font-weight:600;
-    transition:all .2s;letter-spacing:.02em;text-transform:uppercase;
+    gap:3px;background:none;border:none;cursor:pointer;
+    color:var(--text3);font-family:var(--font);
+    padding:8px 2px 6px;position:relative;
+    transition:color .18s;min-width:0;
   }
-  .nav-btn i{font-size:21px;transition:all .2s}
-  .nav-btn.active{color:var(--rose)}
-  .nav-btn.active i{
-    filter:drop-shadow(0 0 8px rgba(212,35,122,.4));
-    transform:translateY(-1px);
+  .nav-icon{
+    width:36px;height:28px;display:flex;align-items:center;justify-content:center;
+    border-radius:18px;transition:all .2s;font-size:20px;
   }
-  .nav-btn span{transition:all .2s}
-  .nav-btn.active span{font-weight:700}
-
-  /* SECTIONS */
-  .section{padding:18px;display:none}
-  .section.active{display:block}
-
-  /* BUTTONS */
-  .btn{
-    display:inline-flex;align-items:center;gap:7px;
-    padding:11px 18px;border-radius:var(--radius-sm);border:none;
-    font-size:14px;font-weight:600;cursor:pointer;
-    transition:all .18s cubic-bezier(.4,0,.2,1);
-    letter-spacing:.01em;font-family:var(--font);
+  .nav-label{font-size:10px;font-weight:700;letter-spacing:.01em;transition:color .18s;white-space:nowrap}
+  .nav-btn.active .nav-icon{
+    background:var(--rose-soft);color:var(--rose);
   }
-  .btn:active{transform:scale(.95);opacity:.88}
-  .btn-primary{
-    background:linear-gradient(135deg,var(--rose) 0%,var(--rose3) 100%);
-    color:#fff;
-    box-shadow:0 4px 18px rgba(212,35,122,.32),0 1px 4px rgba(212,35,122,.2);
-  }
-  .btn-primary:hover{box-shadow:0 6px 24px rgba(212,35,122,.42),0 2px 6px rgba(212,35,122,.25);}
-  .btn-secondary{
-    background:var(--bg3);color:var(--text);
-    border:1.5px solid var(--border2);
-  }
-  .btn-secondary:hover{border-color:var(--rose);color:var(--rose);}
-  .btn-success{background:linear-gradient(135deg,#10b981,#059669);color:#fff;box-shadow:0 4px 14px rgba(16,185,129,.28)}
-  .btn-danger{background:rgba(220,38,38,.08);color:var(--red);border:1.5px solid rgba(220,38,38,.2)}
-  .btn-danger:hover{background:rgba(220,38,38,.14);}
-  .btn-blue{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;box-shadow:0 4px 12px rgba(99,102,241,.25)}
-  .btn-amber{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 4px 12px rgba(245,158,11,.25)}
-  .btn-sm{padding:7px 13px;font-size:12px;border-radius:var(--radius-xs)}
-  .btn-icon{width:38px;height:38px;padding:0;border-radius:var(--radius-xs);justify-content:center}
-  .btn-full{width:100%;justify-content:center}
-
-  /* INPUTS */
-  input,select,textarea{
-    width:100%;padding:12px 15px;
-    background:var(--bg2);
-    border:1.5px solid var(--border);
-    border-radius:var(--radius-sm);
-    color:var(--text);font-size:14px;
-    font-family:var(--font);outline:none;
-    transition:all .18s;
-  }
-  input:focus,select:focus,textarea:focus{
-    border-color:var(--rose);
-    background:var(--bg2);
-    box-shadow:0 0 0 3px rgba(212,35,122,.1);
-  }
-  select option{background:var(--bg2)}
-  label{
-    display:block;font-size:10.5px;color:var(--text2);
-    margin-bottom:6px;font-weight:700;
-    letter-spacing:.06em;text-transform:uppercase;
-  }
-  .form-group{margin-bottom:15px}
-
-  /* CARDS */
-  .card{
-    background:var(--bg2);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:16px;margin-bottom:10px;
-    box-shadow:var(--card-glow);
-    transition:box-shadow .2s;
-  }
-  .card:hover{box-shadow:var(--card-glow-hover);}
-  .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-  .card-title{font-size:15px;font-weight:700;letter-spacing:-.01em}
-
-  /* BADGES */
-  .badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.02em}
-  .badge-rose{background:var(--rose-soft);color:var(--rose)}
-  .badge-green{background:rgba(5,150,105,.1);color:var(--green)}
-  .badge-red{background:rgba(220,38,38,.1);color:var(--red)}
-  .badge-amber{background:rgba(217,119,6,.1);color:var(--amber)}
-  .badge-blue{background:rgba(79,70,229,.1);color:var(--blue)}
-
-  /* MODALS */
-  .modal-bg{
-    display:none;position:fixed;inset:0;
-    background:rgba(10,4,8,.72);
-    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-    z-index:200;align-items:flex-end;justify-content:center;
-    transition:opacity .2s;
-  }
-  .modal-bg.open{display:flex;animation:fadeIn .2s ease}
-  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-  .modal{
-    background:var(--bg2);
-    border-radius:28px 28px 0 0;
-    border-top:1px solid var(--border2);
-    padding:8px 18px 24px;
-    width:100%;max-width:480px;max-height:92vh;overflow-y:auto;
-    animation:slideUp .28s cubic-bezier(.32,.72,0,1);
-  }
-  @keyframes slideUp{from{transform:translateY(40px);opacity:.6}to{transform:translateY(0);opacity:1}}
-  .modal-handle{width:40px;height:4px;background:var(--border2);border-radius:2px;margin:12px auto 18px}
-  .modal-title{font-size:19px;font-weight:800;margin-bottom:18px;letter-spacing:-.02em}
-
-  /* TYPOGRAPHY */
-  .divider{height:1px;background:var(--border);margin:14px 0}
-  .page-title{font-size:22px;font-weight:800;margin-bottom:2px;letter-spacing:-.03em;color:var(--text)}
-  .page-sub{font-size:13px;color:var(--text2);margin-bottom:16px;font-weight:500}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-
-  /* LIST ITEMS */
-  .list-item{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:14px 15px;
-    background:var(--bg2);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    margin-bottom:8px;
-    box-shadow:var(--card-glow);
-    transition:all .18s;
-  }
-  .list-item:active{background:var(--bg3);transform:scale(.99)}
-  .li-left{display:flex;flex-direction:column;gap:3px}
-  .li-title{font-size:14px;font-weight:600;letter-spacing:-.01em}
-  .li-sub{font-size:12px;color:var(--text2)}
-  .li-right{display:flex;align-items:center;gap:8px}
-
-  /* CART BADGE */
-  #cart-badge{
-    position:absolute;top:-6px;right:-6px;
-    background:linear-gradient(135deg,var(--rose),var(--rose3));
-    color:#fff;font-size:9px;font-weight:800;
-    min-width:18px;height:18px;border-radius:50%;
-    display:flex;align-items:center;justify-content:center;
-    padding:0 4px;
-    box-shadow:0 2px 8px rgba(212,35,122,.5);
-    border:2px solid var(--bg2);
-  }
-
-  /* STAT CARDS */
-  .stat-card{
-    background:var(--bg3);
-    border:1px solid var(--border);
-    border-radius:var(--radius-sm);
-    padding:15px;text-align:center;
-    position:relative;overflow:hidden;
-  }
-  .stat-card::before{
-    content:'';position:absolute;top:-20px;right:-20px;
-    width:64px;height:64px;border-radius:50%;
-    background:var(--rose-soft);
-  }
-  .stat-val{font-size:22px;font-weight:800;color:var(--rose);letter-spacing:-.03em;position:relative}
-  .stat-label{font-size:10px;color:var(--text2);margin-top:4px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;position:relative}
-
-  /* SEARCH */
-  .searchbar{position:relative;margin-bottom:14px}
-  .searchbar i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:17px}
-  .searchbar input{padding-left:40px;border-radius:var(--radius-sm)}
-
-  /* TABS */
-  .tabs{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
-  .tabs::-webkit-scrollbar{display:none}
-  .tab{
-    padding:7px 15px;border-radius:20px;
-    border:1.5px solid var(--border);
-    background:transparent;color:var(--text2);
-    font-size:12px;font-weight:700;cursor:pointer;
-    white-space:nowrap;transition:all .18s;
-    letter-spacing:.01em;font-family:var(--font);
-  }
-  .tab.active{
-    background:var(--rose);color:#fff;
-    border-color:var(--rose);
-    box-shadow:0 3px 14px rgba(212,35,122,.35);
-  }
-  .tab:not(.active):hover{border-color:var(--rose);color:var(--rose);}
-
-  /* AGENDA */
-  .agenda-item{
-    border-left:4px solid var(--rose);
-    padding:14px 14px 14px 16px;margin-bottom:12px;
-    background:var(--bg2);border-radius:0 var(--radius-sm) var(--radius-sm) 0;
-    border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);
-    box-shadow:var(--card-glow);transition:box-shadow .2s;
-  }
-  .agenda-item:hover{box-shadow:var(--card-glow-hover);}
+  .nav-btn.active .nav-label{color:var(--rose);}
+  .nav-btn:not(.active):active .nav-icon{background:var(--bg3);}
+  body.dark .nav-btn.active .nav-icon{background:rgba(232,58,150,.18);}
 
   /* TOAST */
   #toast{
@@ -421,11 +242,12 @@ function goTo(sec,btn){
   localStorage.setItem('mtb_lastsec', sec);
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('sec-'+sec).classList.add('active');
-  (btn||document.getElementById('nav-'+sec)).classList.add('active');
+  const secEl = document.getElementById('sec-'+sec);
+  if(secEl) secEl.classList.add('active');
+  (btn||document.getElementById('nav-'+sec))?.classList.add('active');
   if(sec==='caja') renderCajaDiaria();
-  if(sec==='presupuesto'){renderPresupuestosGuardados();populatePresuCliSelect();}
-  if(sec==='mas'){renderAgenda();renderReportes();renderAdminPanel();renderMapaClientes();}
+  if(sec==='envios') renderAgenda();
+  if(sec==='mas'){renderReportes();renderAdminPanel();renderMapaClientes();}
 }
 
 
@@ -626,8 +448,16 @@ async function deleteCombo(id){
 function setVentaTab(tab,btn){
   state.ventaTab=tab;
   document.querySelectorAll('#venta-tabs .tab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  renderVentaList();
+  if(btn) btn.classList.add('active');
+  const isPresu = tab==='presupuesto';
+  const searchWrap = document.getElementById('venta-search-wrap');
+  const ventaList = document.getElementById('venta-list');
+  const presuPanel = document.getElementById('venta-presupuesto-panel');
+  if(searchWrap) searchWrap.style.display = isPresu?'none':'block';
+  if(ventaList) ventaList.style.display = isPresu?'none':'block';
+  if(presuPanel) presuPanel.style.display = isPresu?'block':'none';
+  if(isPresu){ populatePresuCliSelect(); renderPresupuestosGuardados(); renderPresu(); }
+  else renderVentaList();
 }
 function renderVentaList(){
   const q=document.getElementById('venta-search').value.toLowerCase();
@@ -1987,6 +1817,14 @@ function ciclarEstado(id){
   const next=keys[(idx+1)%keys.length];
   setEstadoEnvio(id,next);
 }
+let _envioFiltro = 'todos';
+function setEnvioFiltro(filtro, btn){
+  _envioFiltro = filtro;
+  document.querySelectorAll('#envios-filtro-tabs .tab').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderAgenda();
+}
+
 async function deleteEnvio(id){
   await dbDelete('envios',id);
   state.envios=state.envios.filter(e=>e._id!==id);renderAgenda();
@@ -1994,13 +1832,14 @@ async function deleteEnvio(id){
 function renderAgenda(){
   const today=new Date().toISOString().split('T')[0];
   const ORDER={pendiente:0,en_camino:1,entregado:2,cancelado:3};
-  const sorted=[...state.envios].sort((a,b)=>{
+  const filtered=_envioFiltro==='todos' ? state.envios : state.envios.filter(e=>getEstado(e)===_envioFiltro);
+  const sorted=[...filtered].sort((a,b)=>{
     const ea=getEstado(a),eb=getEstado(b);
     if(ORDER[ea]!==ORDER[eb]) return ORDER[ea]-ORDER[eb];
     return a.fecha>b.fecha?1:-1;
   });
   let html='';
-  if(!sorted.length){html='<div style="color:var(--text3);font-size:13px;padding:8px 0">Sin envíos agendados</div>';}
+  if(!sorted.length){html=`<div style="color:var(--text3);font-size:13px;padding:16px 0;text-align:center">${_envioFiltro==='todos'?'Sin envíos agendados':'Sin envíos con ese estado'}</div>`;}
   else sorted.forEach(env=>{
     const cli=state.clientes.find(c=>c._id===env.clienteId);
     const isToday=env.fecha===today;
@@ -2826,9 +2665,7 @@ function iniciarSesion(nombre){
     const el=document.getElementById('header-usuario');
     if(el) el.textContent='👑 '+u.nombre;
   }
-  const lastSec = localStorage.getItem('mtb_lastsec')||'venta';
-  const navBtn = document.getElementById('nav-'+lastSec)||document.getElementById('nav-venta');
-  goTo(lastSec, navBtn);
+  goTo('venta', document.getElementById('nav-venta'));
   init().catch(e=>{console.error(e);toast('Error al conectar. Revisá tu conexión.');});
 }
 
@@ -2920,51 +2757,73 @@ function startApp(){
 </script>
 <body>
 <!-- LOGIN -->
-<div id="login-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px;background:radial-gradient(ellipse 120% 80% at 50% 0%,#fce7f3 0%,#fdf8fb 60%,#fdf8fb 100%);position:relative">
-  <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:radial-gradient(circle at 80% 20%,rgba(244,114,182,.12) 0%,transparent 50%),radial-gradient(circle at 20% 80%,rgba(212,35,122,.08) 0%,transparent 50%);pointer-events:none"></div>
-  <div style="width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1">
+<div id="login-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:28px 24px;background:linear-gradient(160deg,#fce7f3 0%,#fdf8fb 45%,#f0e6f8 100%);position:relative;overflow:hidden">
+  <!-- Decoración fondo -->
+  <div style="position:absolute;top:-80px;right:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(194,24,110,.10) 0%,transparent 70%);pointer-events:none"></div>
+  <div style="position:absolute;bottom:-60px;left:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(194,24,110,.07) 0%,transparent 70%);pointer-events:none"></div>
+
+  <div style="width:100%;max-width:360px;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1">
 
     <!-- Logo -->
-    <div style="margin-bottom:16px;width:80px;height:80px;border-radius:24px;background:linear-gradient(135deg,var(--rose),var(--rose3));display:flex;align-items:center;justify-content:center;box-shadow:0 8px 28px rgba(194,24,110,.3);font-size:38px">💅</div>
+    <div style="width:72px;height:72px;border-radius:22px;background:linear-gradient(135deg,#c2186e,#7d0d49);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 28px rgba(194,24,110,.35);font-size:34px;margin-bottom:20px">💅</div>
 
-    <div style="font-size:28px;font-weight:800;color:#1a0d14;margin-bottom:4px;letter-spacing:-.04em;font-family:Playfair Display,serif">Bienvenida 💅</div>
-    <div style="font-size:14px;color:#9d7a8a;margin-bottom:28px;text-align:center">Ingresá a tu tienda</div>
-    <div style="width:100%;background:#fff;border-radius:24px;padding:28px 24px;box-shadow:0 8px 48px rgba(212,35,122,.12),0 2px 12px rgba(0,0,0,.04);border:1px solid #f0d4e4">
+    <div style="font-size:26px;font-weight:800;color:#18080f;margin-bottom:6px;letter-spacing:-.04em;font-family:'Playfair Display',serif;text-align:center">Mi Tienda Belleza</div>
+    <div style="font-size:13px;color:#8a6070;margin-bottom:32px;text-align:center;font-weight:500">Ingresá a tu tienda</div>
+
+    <!-- Card -->
+    <div style="width:100%;background:#fff;border-radius:24px;padding:26px 22px 22px;box-shadow:0 4px 32px rgba(194,24,110,.10),0 1px 8px rgba(0,0,0,.05);border:1px solid #f0d4e4">
       <div class="form-group">
-        <label style="color:#9d7a8a;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Email</label>
-        <input id="login-nombre" type="email" placeholder="tu@email.com" style="font-size:16px;padding:14px;border-color:#f0d6e4;border-radius:14px;background:#fdf6f9"
+        <label style="color:#a87898;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase">Email</label>
+        <input id="login-nombre" type="email" placeholder="tu@email.com"
+          style="font-size:15px;padding:13px 14px;border-color:#eed4e6;border-radius:13px;background:#fdf6f9;color:#18080f"
           onkeydown="if(event.key==='Enter')document.getElementById('login-pass').focus()">
       </div>
-      <div class="form-group" style="margin-bottom:6px">
-        <label style="color:#9d7a8a;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Contraseña</label>
+      <div class="form-group" style="margin-bottom:8px">
+        <label style="color:#a87898;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase">Contraseña</label>
         <div style="position:relative">
-          <input id="login-pass" type="password" placeholder="••••••••" style="font-size:16px;padding:14px;padding-right:48px;border-color:#f0d6e4;border-radius:14px;background:#fdf6f9"
+          <input id="login-pass" type="password" placeholder="••••••••"
+            style="font-size:15px;padding:13px 14px;padding-right:48px;border-color:#eed4e6;border-radius:13px;background:#fdf6f9;color:#18080f"
             onkeydown="if(event.key==='Enter'&&typeof entrarApp==='function')entrarApp()">
-          <button id="btn-toggle-pass" onclick="togglePass()" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);background:none;border:none;color:#c4a0b2;cursor:pointer;font-size:18px;display:flex;align-items:center"><i class="ti ti-eye"></i></button>
+          <button id="btn-toggle-pass" onclick="togglePass()" style="position:absolute;right:13px;top:50%;transform:translateY(-50%);background:none;border:none;color:#c4a0b2;cursor:pointer;font-size:18px;display:flex;align-items:center;padding:4px"><i class="ti ti-eye"></i></button>
         </div>
       </div>
       <div id="login-error" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;display:none;background:#fee2e2;padding:8px 12px;border-radius:10px"></div>
-      <button class="btn btn-primary btn-full" style="margin-top:10px;padding:15px;font-size:15px;font-weight:700;border-radius:14px;background:linear-gradient(135deg,#e8409a,#d63384);box-shadow:0 6px 20px rgba(232,64,154,.3)" onclick="if(typeof entrarApp==='function')entrarApp()">Ingresar</button>
+      <button class="btn btn-full" onclick="if(typeof entrarApp==='function')entrarApp()"
+        style="margin-top:8px;padding:14px;font-size:15px;font-weight:700;border-radius:13px;background:linear-gradient(135deg,#c2186e,#a0125c);color:#fff;border:none;box-shadow:0 5px 18px rgba(194,24,110,.35);letter-spacing:.01em">
+        Ingresar
+      </button>
     </div>
-    <div style="text-align:center;margin-top:20px">
-      <button onclick="if(typeof mostrarRegistro==='function')mostrarRegistro()" style="background:none;border:none;color:#9d7a8a;font-size:13px;cursor:pointer">¿Primera vez? <span style="color:#e8409a;font-weight:600;text-decoration:underline">Crear cuenta</span></button>
+
+    <div style="text-align:center;margin-top:18px">
+      <button onclick="if(typeof mostrarRegistro==='function')mostrarRegistro()"
+        style="background:none;border:none;color:#8a6070;font-size:13px;cursor:pointer;font-family:inherit">
+        ¿Primera vez? <span style="color:#c2186e;font-weight:700;text-decoration:underline">Crear cuenta</span>
+      </button>
     </div>
   </div>
 </div>
 
 <!-- REGISTRO -->
-<div id="registro-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:32px;background:var(--bg)">
-  <div style="font-size:22px;font-weight:800;color:var(--rose2);margin-bottom:4px">Crear cuenta</div>
-  <div style="font-size:13px;color:var(--text2);margin-bottom:24px">Solo la primera vez</div>
-  <div style="width:100%;max-width:320px">
-    <div class="form-group"><label>Tu nombre</label><input id="reg-nombre" placeholder="Ej: Laura" style="font-size:16px;padding:14px"></div>
-    <div class="form-group"><label>Email</label><input id="reg-email" type="email" placeholder="tu@email.com" style="font-size:16px;padding:14px"></div>
-    <div class="form-group"><label>Contraseña (mín. 6 caracteres)</label><input id="reg-pass" type="password" placeholder="Elegí una contraseña" style="font-size:16px;padding:14px"></div>
-    <div class="form-group"><label>Repetir contraseña</label><input id="reg-pass2" type="password" placeholder="Repetí la contraseña" style="font-size:16px;padding:14px" onkeydown="if(event.key==='Enter'&&typeof registrarse==='function')registrarse()"></div>
-    <div id="reg-error" style="color:var(--red);font-size:13px;text-align:center;margin-bottom:8px;display:none"></div>
-    <button class="btn btn-primary btn-full" style="padding:14px;font-size:16px" onclick="if(typeof registrarse==='function')registrarse()">Crear cuenta 💅</button>
+<div id="registro-screen" style="display:none;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:28px 24px;background:linear-gradient(160deg,#fce7f3 0%,#fdf8fb 45%,#f0e6f8 100%)">
+  <div style="width:100%;max-width:360px">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(135deg,#c2186e,#7d0d49);display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 14px;box-shadow:0 6px 20px rgba(194,24,110,.3)">💅</div>
+      <div style="font-size:22px;font-weight:800;color:#a0125c;margin-bottom:4px;font-family:'Playfair Display',serif">Crear cuenta</div>
+      <div style="font-size:13px;color:#8a6070">Solo la primera vez</div>
+    </div>
+    <div style="background:#fff;border-radius:24px;padding:24px 22px;box-shadow:0 4px 32px rgba(194,24,110,.10);border:1px solid #f0d4e4">
+      <div class="form-group"><label>Tu nombre</label><input id="reg-nombre" placeholder="Ej: Laura" style="font-size:15px;padding:13px 14px;border-color:#eed4e6;border-radius:13px;background:#fdf6f9"></div>
+      <div class="form-group"><label>Email</label><input id="reg-email" type="email" placeholder="tu@email.com" style="font-size:15px;padding:13px 14px;border-color:#eed4e6;border-radius:13px;background:#fdf6f9"></div>
+      <div class="form-group"><label>Contraseña (mín. 6 caracteres)</label><input id="reg-pass" type="password" placeholder="Elegí una contraseña" style="font-size:15px;padding:13px 14px;border-color:#eed4e6;border-radius:13px;background:#fdf6f9"></div>
+      <div class="form-group"><label>Repetir contraseña</label><input id="reg-pass2" type="password" placeholder="Repetí la contraseña" style="font-size:15px;padding:13px 14px;border-color:#eed4e6;border-radius:13px;background:#fdf6f9" onkeydown="if(event.key==='Enter'&&typeof registrarse==='function')registrarse()"></div>
+      <div id="reg-error" style="color:#dc2626;font-size:12px;text-align:center;margin-bottom:10px;display:none;background:#fee2e2;padding:8px 12px;border-radius:10px"></div>
+      <button class="btn btn-full" onclick="if(typeof registrarse==='function')registrarse()"
+        style="padding:14px;font-size:15px;font-weight:700;border-radius:13px;background:linear-gradient(135deg,#c2186e,#a0125c);color:#fff;border:none;box-shadow:0 5px 18px rgba(194,24,110,.3)">
+        Crear cuenta 💅
+      </button>
+    </div>
     <div style="text-align:center;margin-top:16px">
-      <button onclick="if(typeof mostrarLogin==='function')mostrarLogin()" style="background:none;border:none;color:var(--text2);font-size:13px;cursor:pointer;text-decoration:underline">Ya tengo cuenta</button>
+      <button onclick="if(typeof mostrarLogin==='function')mostrarLogin()" style="background:none;border:none;color:#8a6070;font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline">Ya tengo cuenta</button>
     </div>
   </div>
 </div>
@@ -2997,9 +2856,47 @@ function startApp(){
       <div class="tabs" id="venta-tabs">
         <button class="tab active" onclick="setVentaTab('articulos',this)">Artículos</button>
         <button class="tab" onclick="setVentaTab('combos',this)">Combos</button>
+        <button class="tab" onclick="setVentaTab('presupuesto',this)">Presupuesto</button>
       </div>
-      <div class="searchbar"><i class="ti ti-search"></i><input type="text" placeholder="Buscar..." id="venta-search" oninput="renderVentaList()"></div>
+      <div id="venta-search-wrap" class="searchbar"><i class="ti ti-search"></i><input type="text" placeholder="Buscar..." id="venta-search" oninput="renderVentaList()"></div>
       <div id="venta-list"></div>
+      <!-- PRESUPUESTO EMBEBIDO EN VENTA -->
+      <div id="venta-presupuesto-panel" style="display:none">
+        <div class="card">
+          <div class="form-group">
+            <label>Cliente</label>
+            <select id="presu-cliente-sel" onchange="presuCliChange(this.value)" style="margin-bottom:6px">
+              <option value="">Sin cliente</option>
+            </select>
+            <input id="presu-cliente" placeholder="O escribí el nombre manualmente" style="display:none">
+          </div>
+          <div class="form-group">
+            <label>Descuento efectivo/transferencia</label>
+            <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap">
+              <button id="presu-btn-5" onclick="setPresuDesc(5)" class="btn btn-secondary btn-sm">5%</button>
+              <button id="presu-btn-10" onclick="setPresuDesc(10)" class="btn btn-secondary btn-sm">10%</button>
+              <button id="presu-btn-15" onclick="setPresuDesc(15)" class="btn btn-secondary btn-sm">15%</button>
+              <button id="presu-btn-0" onclick="setPresuDesc(0)" class="btn btn-secondary btn-sm">Sin desc.</button>
+            </div>
+            <input type="hidden" id="presu-desc" value="10">
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:700;color:var(--text)">Artículos</div>
+            <button class="btn btn-primary btn-sm" onclick="addPresuItem()"><i class="ti ti-plus"></i> Agregar</button>
+          </div>
+          <div id="presu-items"></div>
+          <div id="presu-totales" style="margin-top:12px"></div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-full" onclick="presuWhatsapp()"><i class="ti ti-brand-whatsapp"></i> WhatsApp</button>
+            <button class="btn btn-primary btn-full" onclick="presuPDF()"><i class="ti ti-file-invoice"></i> PDF</button>
+            <button class="btn btn-full" style="background:var(--rose-soft);color:var(--rose);border:1.5px solid var(--border2)" onclick="guardarPresupuesto()"><i class="ti ti-device-floppy"></i> Guardar</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">📋 Guardados</span></div>
+          <div id="presu-historial"></div>
+        </div>
+      </div>
     </div>
     <!-- ARTICULOS -->
     <div id="sec-articulos" class="section">
@@ -3055,58 +2952,11 @@ function startApp(){
       <!-- Cajas anteriores -->
       <div id="cajas-anteriores-panel"></div>
     </div>
-    <!-- PRESUPUESTO -->
-    <div id="sec-presupuesto" class="section">
-      <div class="page-title">Presupuesto</div>
-      <div class="page-sub">Armá y enviá por WhatsApp o PDF</div>
-      <div class="card">
-        <div class="form-group">
-          <label>Cliente</label>
-          <select id="presu-cliente-sel" onchange="presuCliChange(this.value)" style="margin-bottom:6px">
-            <option value="">Sin cliente</option>
-          </select>
-          <input id="presu-cliente" placeholder="O escribí el nombre manualmente" style="display:none">
-        </div>
-        <div class="form-group">
-          <label>Descuento efectivo/transferencia</label>
-          <div style="display:flex;gap:8px;margin-top:4px">
-            <button id="presu-btn-5" onclick="setPresuDesc(5)" class="btn btn-secondary btn-sm">5%</button>
-            <button id="presu-btn-10" onclick="setPresuDesc(10)" class="btn btn-secondary btn-sm">10%</button>
-            <button id="presu-btn-15" onclick="setPresuDesc(15)" class="btn btn-secondary btn-sm">15%</button>
-            <button id="presu-btn-0" onclick="setPresuDesc(0)" class="btn btn-secondary btn-sm">Sin desc.</button>
-          </div>
-          <input type="hidden" id="presu-desc" value="10">
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-          <div style="font-size:13px;font-weight:700;color:var(--text)">Artículos</div>
-          <button class="btn btn-primary btn-sm" onclick="addPresuItem()"><i class="ti ti-plus"></i> Agregar</button>
-        </div>
-        <div id="presu-items"></div>
-        <div id="presu-totales" style="margin-top:12px"></div>
-        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-full" onclick="presuWhatsapp()"><i class="ti ti-brand-whatsapp"></i> WhatsApp</button>
-          <button class="btn btn-primary btn-full" onclick="presuPDF()"><i class="ti ti-file-invoice"></i> PDF</button>
-          <button class="btn btn-full" style="background:var(--rose4);color:var(--rose);border:1.5px solid var(--border2)" onclick="guardarPresupuesto()"><i class="ti ti-device-floppy"></i> Guardar presupuesto</button>
-        </div>
-      </div>
-      <div class="card" style="margin-top:10px">
-        <div class="card-header">
-          <span class="card-title">📋 Presupuestos guardados</span>
-        </div>
-        <div id="presu-historial"></div>
-      </div>
-    </div>
+
     <!-- MAS -->
     <div id="sec-mas" class="section">
       <div class="page-title">Más</div>
-      <div class="page-sub">Caja, agenda y descuentos</div>
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">📅 Agenda de envíos</span>
-          <button class="btn btn-primary btn-sm" onclick="openEnvioModal()"><i class="ti ti-plus"></i> Nuevo</button>
-        </div>
-        <div id="agenda-list"></div>
-      </div>
+      <div class="page-sub">Reportes, backup y cuenta</div>
       <div class="card" style="margin-top:12px">
         <div class="card-header">
           <span class="card-title">📊 Reportes</span>
@@ -3160,12 +3010,30 @@ function startApp(){
     </div>
   </div>
   <nav id="nav">
-    <button class="nav-btn active" onclick="goTo('venta',this)" id="nav-venta"><i class="ti ti-shopping-bag"></i>Venta</button>
-    <button class="nav-btn" onclick="goTo('articulos',this)" id="nav-articulos"><i class="ti ti-package"></i>Artículos</button>
-    <button class="nav-btn" onclick="goTo('clientes',this)" id="nav-clientes"><i class="ti ti-users"></i>Clientes</button>
-    <button class="nav-btn" onclick="goTo('caja',this)" id="nav-historial"><i class="ti ti-report-money"></i>Caja</button>
-    <button class="nav-btn" onclick="goTo('presupuesto',this)" id="nav-presupuesto"><i class="ti ti-file-invoice"></i>Presu</button>
-    <button class="nav-btn" onclick="goTo('mas',this)" id="nav-mas"><i class="ti ti-dots"></i>Más</button>
+    <button class="nav-btn active" onclick="goTo('venta',this)" id="nav-venta">
+      <span class="nav-icon"><i class="ti ti-shopping-bag"></i></span>
+      <span class="nav-label">Venta</span>
+    </button>
+    <button class="nav-btn" onclick="goTo('articulos',this)" id="nav-articulos">
+      <span class="nav-icon"><i class="ti ti-package"></i></span>
+      <span class="nav-label">Artículos</span>
+    </button>
+    <button class="nav-btn" onclick="goTo('clientes',this)" id="nav-clientes">
+      <span class="nav-icon"><i class="ti ti-users"></i></span>
+      <span class="nav-label">Clientes</span>
+    </button>
+    <button class="nav-btn" onclick="goTo('caja',this)" id="nav-caja">
+      <span class="nav-icon"><i class="ti ti-report-money"></i></span>
+      <span class="nav-label">Caja</span>
+    </button>
+    <button class="nav-btn" onclick="goTo('envios',this)" id="nav-envios">
+      <span class="nav-icon"><i class="ti ti-truck-delivery"></i></span>
+      <span class="nav-label">Envíos</span>
+    </button>
+    <button class="nav-btn" onclick="goTo('mas',this)" id="nav-mas">
+      <span class="nav-icon"><i class="ti ti-dots"></i></span>
+      <span class="nav-label">Más</span>
+    </button>
   </nav>
 </div>
 
