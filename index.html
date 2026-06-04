@@ -350,9 +350,8 @@ function goTo(sec,btn){
   (btn||document.getElementById('nav-'+sec))?.classList.add('active');
   if(sec==='caja') renderCajaDiaria();
   if(sec==='envios') renderAgenda();
-  if(sec==='historial') renderHistorial();
-  if(sec==='mapa') renderMapaSeccion();
-  if(sec==='mas'){renderReportes();renderAdminPanel();renderMapaClientes();}
+    if(sec==='mapa') 
+  if(sec==='mas'){renderReportes();renderAdminPanel();}
 }
 
 
@@ -1255,72 +1254,6 @@ async function guardarPagoCli(){
 }
 
 let _histFiltro='todo';
-function setHistFiltro(filtro,btn){
-  _histFiltro=filtro;
-  document.querySelectorAll('#sec-historial .tab').forEach(b=>b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  renderHistorial();
-}
-function renderHistorial(){
-  const today=new Date().toDateString();
-  const ventasHoy=state.ventas.filter(v=>new Date(v.fecha).toDateString()===today);
-  const totales={efectivo:0,transferencia:0,tarjeta:0,cuenta_corriente:0};
-  let totalDia=0;
-  ventasHoy.forEach(v=>{totales[v.formaPago]=(totales[v.formaPago]||0)+v.total;totalDia+=v.total;});
-  document.getElementById('hist-resumen').innerHTML=`
-    <div class="stat-card"><div class="stat-val">${fmt(totalDia)}</div><div class="stat-label">Total del día</div></div>
-    <div class="stat-card"><div class="stat-val">${ventasHoy.length}</div><div class="stat-label">Ventas hoy</div></div>
-    <div class="stat-card"><div class="stat-val">${fmt(totales.efectivo)}</div><div class="stat-label">Efectivo</div></div>
-    <div class="stat-card"><div class="stat-val">${fmt(totales.transferencia+totales.tarjeta)}</div><div class="stat-label">Transferencia</div></div>
-  `;
-  const pagoIcon={efectivo:'💵',transferencia:'📱',tarjeta:'💳',cuenta_corriente:'📋'};
-  const q=(document.getElementById('hist-search')||{}).value?.toLowerCase()||'';
-  const desde=document.getElementById('hist-desde')?.value||'';
-  const hasta=document.getElementById('hist-hasta')?.value||'';
-  const sorted=[...state.ventas].filter(v=>{
-    const cli=state.clientes.find(c=>String(c._id)===String(v.clienteId));
-    const fechaStr=new Date(v.fecha).toLocaleDateString('es-AR');
-    const fechaISO=new Date(v.fecha).toISOString().slice(0,10);
-    const matchQ=!q||(cli&&cli.nombre.toLowerCase().includes(q))||fechaStr.includes(q)||(v.nro&&String(v.nro).includes(q))||
-      (v.items&&v.items.some(i=>i.nombre&&i.nombre.toLowerCase().includes(q)));
-    const matchDesde=!desde||fechaISO>=desde;
-    const matchHasta=!hasta||fechaISO<=hasta;
-    return matchQ&&matchDesde&&matchHasta;
-  }).reverse();
-  document.getElementById('hist-list').innerHTML=sorted.map((v,idx)=>{
-    const cli=state.clientes.find(c=>String(c._id)===String(v.clienteId));
-    const fecha=new Date(v.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-    const hora=new Date(v.fecha).toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    const vid=String(v._id);
-    return`<div style="padding:12px;background:var(--bg2);border:1px solid var(--border);border-radius:14px;margin-bottom:8px">
-      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer"
-        onclick="mostrarTicketById('${vid}',${idx})">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div style="width:40px;height:40px;border-radius:10px;background:var(--rose4);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">
-            ${pagoIcon[v.formaPago]||'🛒'}
-          </div>
-          <div>
-            <div style="font-size:14px;font-weight:700">${cli?cli.nombre:'Sin cliente'}</div>
-            <div style="font-size:12px;color:var(--text2)">${fecha} ${hora} · Venta #${v.nro||''}</div>
-            <div style="font-size:11px;margin-top:2px">
-              <span style="background:var(--rose4);padding:2px 8px;border-radius:6px;color:var(--rose);font-size:10px;font-weight:700">${{efectivo:'Efectivo',transferencia:'Transferencia',tarjeta:'Tarjeta',cuenta_corriente:'Cta. cte.'}[v.formaPago]||v.formaPago}</span>
-              ${v.descuento?`<span style="color:var(--green);margin-left:4px">-${fmt(v.descuento)}</span>`:''}
-            </div>
-          </div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          <div style="font-size:17px;font-weight:800;color:var(--rose2)">${fmt(v.total)}</div>
-          <div style="font-size:11px;color:var(--text3)">${v.items.length} ítem(s)</div>
-        </div>
-      </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px;border-top:1px solid var(--border);padding-top:8px">
-        <button class="btn btn-secondary btn-sm" onclick="verTicketVenta('${v._id||''}')"><i class="ti ti-receipt"></i> Ticket</button>
-        <button class="btn btn-danger btn-sm" onclick="borrarVenta('${vid}')"><i class="ti ti-trash"></i> Borrar</button>
-      </div>
-    </div>`;
-  }).join('')||`<div style="text-align:center;padding:30px;color:var(--text3)">Sin ventas aún</div>`;
-}
-
 function cajasHistHTML(){
   const cajasCerradas=state.cajasHist||[];
   if(!cajasCerradas.length) return '';
@@ -1359,7 +1292,7 @@ async function borrarVenta(id){
   }
   await dbDelete('ventas', id);
   state.ventas = state.ventas.filter(v=>String(v._id)!==String(id));
-  renderHistorial();
+  renderCajaDiaria();
   renderArticulos();
   toast('Venta eliminada y stock devuelto ✓');
 }
@@ -1632,12 +1565,7 @@ function imprimirCajaActual(){
 }
 
 function renderCajaPanel(){
-  // Keep for backwards compat - redirect to new func
-  renderCajaDiaria();
-}
-
-function renderCajaPanel(){
-  const panel=document.getElementById('caja-panel');
+  const panel=document.getElementById('caja-activa-panel');
   if(!state.caja){
     panel.innerHTML=`<button class="btn btn-primary btn-full" onclick="openModal('modal-caja')"><i class="ti ti-lock-open"></i> Abrir nueva caja</button>${cajasHistHTML()}`;
     return;
@@ -1742,8 +1670,6 @@ function backupCompleto(){
   toast('Backup descargado ✓');
 }
 
-function geolocalizarCliente(){}
-
 function verDireccionEnMaps(){
   const dir=document.getElementById('cli-dir').value.trim();
   if(!dir){toast('Primero escribí la dirección');return;}
@@ -1755,120 +1681,6 @@ function verDireccionEnMaps2(){
   if(!dir){toast('Primero escribí la dirección secundaria');return;}
   const url=`https://www.google.com/maps/search/${encodeURIComponent(dir+', Argentina')}`;
   window.open(url,'_blank');
-}
-
-function renderMapaClientes(){
-  const conDir=state.clientes.filter(c=>(c.direccion&&c.direccion.trim())||(c.direccion2&&c.direccion2.trim()));
-  const list=document.getElementById('mapa-clientes-list');
-  if(!list) return;
-  if(!conDir.length){
-    list.innerHTML='<div style="text-align:center;padding:16px;color:var(--text3);font-size:13px">Ningún cliente tiene dirección guardada aún.<br>Editá un cliente y escribí la dirección.</div>';
-    return;
-  }
-  list.innerHTML=conDir.map(c=>`
-    <div style="padding:12px 0;border-bottom:1px solid var(--border)">
-      <div style="font-size:14px;font-weight:700;margin-bottom:8px">${c.nombre}</div>
-      ${c.direccion?`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:12px;color:var(--text2);flex:1"><i class="ti ti-home" style="font-size:11px"></i> ${c.direccion}</span>
-        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.direccion+', Argentina')}&travelmode=driving"
-          target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;font-size:12px;padding:6px 12px;flex-shrink:0">
-          <i class="ti ti-navigation"></i> Navegar
-        </a>
-      </div>`:''}
-      ${c.direccion2?`
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:12px;color:var(--text2);flex:1"><i class="ti ti-home-2" style="font-size:11px"></i> ${c.direccion2}</span>
-        <a href="https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(c.direccion2+', Argentina')}&travelmode=driving"
-          target="_blank" class="btn btn-secondary btn-sm" style="text-decoration:none;font-size:12px;padding:6px 12px;flex-shrink:0">
-          <i class="ti ti-navigation"></i> Navegar
-        </a>
-      </div>`:''}
-    </div>`).join('');
-}
-
-function renderMapaSeccion(){
-  const conUbi = state.clientes.filter(c => c.lat && c.lng);
-  const statsEl = document.getElementById('mapa-stats');
-  const pinsEl = document.getElementById('mapa-clientes-pins');
-  const mapaEl = document.getElementById('mapa-osm');
-  if(!statsEl||!pinsEl||!mapaEl) return;
-
-  statsEl.innerHTML = `<div style="display:flex;gap:8px">
-    <div class="stat-card" style="flex:1"><div class="stat-val">${state.clientes.length}</div><div class="stat-label">Total clientes</div></div>
-    <div class="stat-card" style="flex:1"><div class="stat-val">${conUbi.length}</div><div class="stat-label">Con ubicación</div></div>
-  </div>`;
-
-  if(!conUbi.length){
-    mapaEl.innerHTML = '<div style="height:340px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;color:var(--text3);font-size:13px"><i class="ti ti-map-off" style="font-size:40px"></i><div>Ningún cliente tiene ubicación guardada</div><div style="font-size:12px">Editá un cliente y tocá "Mi ubicación"</div></div>';
-    pinsEl.innerHTML = '';
-    return;
-  }
-
-  // Calculate center
-  const avgLat = conUbi.reduce((s,c)=>s+parseFloat(c.lat),0)/conUbi.length;
-  const avgLng = conUbi.reduce((s,c)=>s+parseFloat(c.lng),0)/conUbi.length;
-
-  // Build OSM map with Leaflet
-  mapaEl.innerHTML = '<div id="leaflet-map" style="width:100%;height:340px"></div>';
-
-  if(!window._leafletLoaded){
-    window._leafletLoaded = true;
-    const css = document.createElement('link');
-    css.rel='stylesheet';
-    css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    document.head.appendChild(css);
-    const js = document.createElement('script');
-    js.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    js.onload = () => _initMap(conUbi, avgLat, avgLng);
-    document.head.appendChild(js);
-  } else {
-    setTimeout(()=>_initMap(conUbi, avgLat, avgLng), 50);
-  }
-
-  // Client list below map
-  pinsEl.innerHTML = '<div class="card-title" style="margin-bottom:10px">📍 Clientes con ubicación</div>' +
-    conUbi.map(c => {
-      const mapsUrl = `https://www.google.com/maps?q=${c.lat},${c.lng}`;
-      return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)">
-        <div style="width:36px;height:36px;border-radius:50%;background:var(--rose-soft);border:1.5px solid var(--rose3);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:var(--rose2);flex-shrink:0">${c.nombre[0].toUpperCase()}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:13px;font-weight:700">${c.nombre}</div>
-          <div style="font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.direccion||'Ubicación GPS'}</div>
-        </div>
-        <a href="${mapsUrl}" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none;flex-shrink:0"><i class="ti ti-navigation"></i> Ir</a>
-      </div>`;
-    }).join('');
-}
-
-function _initMap(clientes, lat, lng){
-  if(window._leafletMap){ window._leafletMap.remove(); window._leafletMap=null; }
-  const map = L.map('leaflet-map').setView([lat, lng], 13);
-  window._leafletMap = map;
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution:'© OpenStreetMap',maxZoom:19
-  }).addTo(map);
-
-  const icon = L.divIcon({
-    html: `<div style="background:#e8409a;width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);border:2.5px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35)"></div>`,
-    className:'',iconSize:[28,28],iconAnchor:[14,28]
-  });
-
-  clientes.forEach(c=>{
-    const mapsUrl = `https://www.google.com/maps?q=${c.lat},${c.lng}`;
-    L.marker([parseFloat(c.lat),parseFloat(c.lng)],{icon})
-      .addTo(map)
-      .bindPopup(`<div style="min-width:140px"><div style="font-weight:700;font-size:13px;margin-bottom:4px">${c.nombre}</div>
-        <div style="font-size:11px;color:#666;margin-bottom:8px">${c.direccion||'Ubicación GPS'}</div>
-        <a href="${mapsUrl}" target="_blank" style="background:#e8409a;color:#fff;padding:5px 12px;border-radius:8px;text-decoration:none;font-size:12px;font-weight:600">📍 Abrir Maps</a>
-      </div>`);
-  });
-
-  // Fit all markers
-  if(clientes.length > 1){
-    const bounds = L.latLngBounds(clientes.map(c=>[parseFloat(c.lat),parseFloat(c.lng)]));
-    map.fitBounds(bounds, {padding:[30,30]});
-  }
 }
 
 function resetearCuenta(){
@@ -2196,14 +2008,6 @@ async function setEstadoEnvio(id, estado){
   }
   renderAgenda();
 }
-function ciclarEstado(id){
-  const env=state.envios.find(e=>e._id===id);
-  if(!env) return;
-  const keys=ENVIO_ESTADOS.map(e=>e.key);
-  const idx=keys.indexOf(getEstado(env));
-  const next=keys[(idx+1)%keys.length];
-  setEstadoEnvio(id,next);
-}
 let _envioFiltro = 'todos';
 function setEnvioFiltro(filtro, btn){
   _envioFiltro = filtro;
@@ -2331,19 +2135,6 @@ function togglePass(){
   inp.type=showing?'text':'password';
   if(btn) btn.innerHTML=showing?'<i class="ti ti-eye-off"></i>':'<i class="ti ti-eye"></i>';
   if(showing) loginFaceUncover(); else loginFaceCover();
-}
-
-
-function loginBlink(){
-  const eo=document.getElementById('eyes-open');
-  if(!eo) return;
-  eo.style.transform='scaleY(0.1)';
-  eo.style.transformOrigin='65px 59px';
-  eo.style.transition='transform 0.07s ease';
-  setTimeout(()=>{
-    eo.style.transform='scaleY(1)';
-    eo.style.transition='transform 0.1s ease';
-  },100);
 }
 
 
@@ -2694,10 +2485,10 @@ function verPresuDesdeMovimiento(id){
         </div>
 
         <div style="display:flex;flex-direction:column;gap:8px">
-          <button class="btn btn-secondary btn-full" onclick="presuGuardadoWhatsapp2('${p._id}')" style="background:linear-gradient(135deg,rgba(37,211,102,.1),rgba(18,140,62,.1));border-color:#25d366;color:#16a34a">
+          <button class="btn btn-secondary btn-full" onclick="presuGuardadoWhatsapp('${p._id}')" style="background:linear-gradient(135deg,rgba(37,211,102,.1),rgba(18,140,62,.1));border-color:#25d366;color:#16a34a">
             <i class="ti ti-brand-whatsapp"></i> Enviar por WhatsApp
           </button>
-          <button class="btn btn-secondary btn-full" onclick="presuGuardadoPDF2('${p._id}')">
+          <button class="btn btn-secondary btn-full" onclick="presuGuardadoPDF('${p._id}')">
             <i class="ti ti-file-invoice"></i> Generar PDF
           </button>
           ${!convertido?`
@@ -2712,57 +2503,6 @@ function verPresuDesdeMovimiento(id){
       </div>
     </div>`;
   document.body.insertAdjacentHTML('beforeend', html);
-}
-
-function presuGuardadoWhatsapp2(id){
-  const p=state.presupuestos.find(x=>String(x._id)===String(id));
-  if(!p) return;
-  const cli=state.clientes.find(c=>String(c._id)===String(p.clienteId));
-  const fecha=new Date(p.fecha).toLocaleDateString('es-AR');
-  let txt='*PRESUPUESTO - Mi Tienda Belleza*\n'+fecha+'\n';
-  if(cli) txt+='Para: *'+cli.nombre+'*\n';
-  txt+='\n*Detalle:*\n';
-  (p.items||[]).forEach(it=>{txt+=it.qty+'x '+it.nombre+' → $'+(it.precio*it.qty).toLocaleString('es-AR')+'\n';});
-  if(p.nota) txt+='\n📝 '+p.nota+'\n';
-  txt+='\n💳 *Tarjeta: $'+(p.totalTarjeta||0).toLocaleString('es-AR')+'*';
-  txt+='\n💵 *Efectivo/Transferencia (-10%): $'+(p.totalEfectivo||0).toLocaleString('es-AR')+'*';
-  txt+='\n\n_Gracias por elegirnos ♡_';
-  const tel=cli?.telefono?.replace(/\D/g,'')||'';
-  window.open(tel?'https://wa.me/'+tel+'?text='+encodeURIComponent(txt):'https://wa.me/?text='+encodeURIComponent(txt),'_blank');
-}
-
-function presuGuardadoPDF2(id){
-  const p=state.presupuestos.find(x=>String(x._id)===String(id));
-  if(!p) return;
-  const cli=state.clientes.find(c=>String(c._id)===String(p.clienteId));
-  const fecha=new Date(p.fecha).toLocaleDateString('es-AR');
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    body{font-family:Arial,sans-serif;max-width:420px;margin:0 auto;padding:24px;color:#222}
-    h2{text-align:center;color:#c2185b;margin-bottom:4px}
-    .sub{text-align:center;color:#888;font-size:12px;margin-bottom:4px}
-    .cli{text-align:center;font-weight:bold;margin-bottom:16px}
-    table{width:100%;border-collapse:collapse;margin-bottom:16px}
-    td,th{padding:8px;border-bottom:1px solid #eee;font-size:13px}
-    th{background:#fff0f5;color:#c2185b;font-size:11px;text-align:left}
-    .row-t td{font-weight:bold;font-size:15px;border-top:2px solid #c2185b;padding-top:12px}
-    .row-e td{font-weight:bold;font-size:15px;color:#16a34a;border-bottom:none}
-    .footer{text-align:center;color:#aaa;font-size:11px;margin-top:20px}
-  </style></head><body>
-  <h2>💅 Mi Tienda Belleza</h2>
-  <div class="sub">Presupuesto · ${fecha}</div>
-  ${cli?'<div class="cli">Para: '+cli.nombre+'</div>':'<br>'}
-  <table>
-    <tr><th>Artículo</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th></tr>
-    ${(p.items||[]).map(it=>'<tr><td>'+it.nombre+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right">$'+(it.precio*it.qty).toLocaleString('es-AR')+'</td></tr>').join('')}
-    ${p.nota?'<tr><td colspan="3" style="color:#888;font-size:11px">📝 '+p.nota+'</td></tr>':''}
-    <tr class="row-t"><td colspan="2">💳 Tarjeta</td><td style="text-align:right">$${(p.totalTarjeta||0).toLocaleString('es-AR')}</td></tr>
-    <tr class="row-e"><td colspan="2">💵 Efectivo / Transferencia <span style="background:#dcfce7;color:#16a34a;border-radius:8px;padding:1px 6px;font-size:10px">-10%</span></td><td style="text-align:right">$${(p.totalEfectivo||0).toLocaleString('es-AR')}</td></tr>
-  </table>
-  <div class="footer">Gracias por elegirnos ♡</div>
-  </body></html>`;
-  const w=window.open('','_blank');
-  w.document.write(html);w.document.close();
-  setTimeout(()=>w.print(),400);
 }
 
 async function convertirPresupuesto2(id){
@@ -2833,68 +2573,6 @@ async function borrarPresupuesto(id){
   renderPresupuestosGuardados();
   toast('Presupuesto borrado');
 }
-function presuWhatsapp(){
-  const desc=parseFloat(document.getElementById('presu-desc').value)||0;
-  const items=presuItems.filter(it=>it.nombre);
-  if(!items.length){toast('Agregá al menos un artículo');return;}
-  const cli=document.getElementById('presu-cliente').value.trim();
-  const subtotal=items.reduce((s,it)=>s+it.precio*it.qty,0);
-  const conDesc=subtotal*(1-desc/100);
-  let txt='*PRESUPUESTO - Mi Tienda Belleza*\n';
-  txt+=new Date().toLocaleDateString('es-AR')+'\n\n';
-  if(cli) txt+='Para: '+cli+'\n\n';
-  txt+='*Detalle:*\n';
-  items.forEach(it=>{txt+=it.qty+'x '+it.nombre+' - $'+(it.precio*it.qty).toLocaleString('es-AR')+'\n';});
-  txt+='\n💳 *Tarjeta: $'+subtotal.toLocaleString('es-AR')+'*';
-  txt+='\n💵 *Efectivo/Transferencia'+(desc>0?' (-'+desc+'%)':'')+': $'+conDesc.toLocaleString('es-AR')+'*';
-  txt+='\n\n_Gracias por elegirnos ♡_';
-  window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank');
-}
-function presuPDF(){
-  const desc=parseFloat(document.getElementById('presu-desc').value)||0;
-  const items=presuItems.filter(it=>it.nombre);
-  if(!items.length){toast('Agregá al menos un artículo');return;}
-  const cli=document.getElementById('presu-cliente').value.trim();
-  const subtotal=items.reduce((s,it)=>s+it.precio*it.qty,0);
-  const conDesc=subtotal*(1-desc/100);
-  const fecha=new Date().toLocaleDateString('es-AR');
-  const html=`<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    body{font-family:Arial,sans-serif;max-width:420px;margin:0 auto;padding:24px;color:#222}
-    h2{text-align:center;color:#e8409a;margin-bottom:4px;font-size:20px}
-    .fecha{text-align:center;color:#888;font-size:12px;margin-bottom:4px}
-    .cli{text-align:center;font-weight:bold;margin-bottom:16px;font-size:14px}
-    table{width:100%;border-collapse:collapse;margin-bottom:16px}
-    td,th{padding:8px;border-bottom:1px solid #eee;font-size:13px}
-    th{background:#fff0f5;color:#e8409a;font-size:11px;text-align:left}
-    .row-tarjeta td{font-weight:bold;font-size:15px;border-top:2px solid #e8409a;border-bottom:1px solid #eee;padding-top:12px}
-    .row-efectivo td{font-weight:bold;font-size:15px;color:#16a34a;border-bottom:none}
-    .divider{border:none;border-top:1px dashed #ddd;margin:12px 0}
-    .footer{text-align:center;color:#aaa;font-size:11px;margin-top:20px}
-    .badge{display:inline-block;background:#fff0f5;color:#e8409a;border-radius:20px;padding:2px 10px;font-size:11px;font-weight:bold}
-  </style></head><body>
-  <h2>💅 Mi Tienda Belleza</h2>
-  <div class="fecha">Presupuesto · ${fecha}</div>
-  ${cli?'<div class="cli">Para: '+cli+'</div>':'<div style="margin-bottom:16px"></div>'}
-  <table>
-    <tr><th>Artículo</th><th style="text-align:center">Cant.</th><th style="text-align:right">Subtotal</th></tr>
-    ${items.map(it=>'<tr><td>'+it.nombre+'</td><td style="text-align:center">'+it.qty+'</td><td style="text-align:right">$'+(it.precio*it.qty).toLocaleString('es-AR')+'</td></tr>').join('')}
-    <tr class="row-tarjeta">
-      <td colspan="2">💳 Tarjeta</td>
-      <td style="text-align:right">$${subtotal.toLocaleString('es-AR')}</td>
-    </tr>
-    <tr class="row-efectivo">
-      <td colspan="2">💵 Efectivo / Transferencia${desc>0?' <span class="badge">-'+desc+'%</span>':''}</td>
-      <td style="text-align:right">$${conDesc.toLocaleString('es-AR')}</td>
-    </tr>
-  </table>
-  <div class="footer">Gracias por elegirnos ♡</div>
-  </body></html>`;
-  const w=window.open('','_blank');
-  w.document.write(html);
-  w.document.close();
-  setTimeout(()=>w.print(),400);
-}
-
 // ══ STOCK ALERT BANNER ══════════════════════════════
 function renderStockAlertBanner(){
   // Update notification badge in header
@@ -3450,8 +3128,8 @@ function startApp(){
           <div id="presu-items"></div>
           <div id="presu-totales" style="margin-top:12px"></div>
           <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-            <button class="btn btn-secondary btn-full" onclick="presuWhatsapp()"><i class="ti ti-brand-whatsapp"></i> WhatsApp</button>
-            <button class="btn btn-primary btn-full" onclick="presuPDF()"><i class="ti ti-file-invoice"></i> PDF</button>
+            <button class="btn btn-secondary btn-full" onclick="presuCarritoWhatsapp()"><i class="ti ti-brand-whatsapp"></i> WhatsApp</button>
+            <button class="btn btn-primary btn-full" onclick="presuCarritoPDF()"><i class="ti ti-file-invoice"></i> PDF</button>
             <button class="btn btn-full" style="background:var(--rose-soft);color:var(--rose);border:1.5px solid var(--border2)" onclick="guardarPresupuesto()"><i class="ti ti-device-floppy"></i> Guardar</button>
           </div>
         </div>
@@ -3535,33 +3213,8 @@ function startApp(){
     </div>
 
     <!-- HISTORIAL -->
-    <div id="sec-historial" class="section">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div>
-          <div class="page-title">Historial</div>
-          <div class="page-sub" style="margin-bottom:0">Todas las ventas registradas</div>
-        </div>
-      </div>
-      <div class="searchbar"><i class="ti ti-search"></i><input type="text" placeholder="Buscar cliente, monto..." id="hist-search" oninput="renderHistorial()"></div>
-      <div class="tabs" style="margin-bottom:12px">
-        <button class="tab active" onclick="setHistFiltro('todo',this)">Todo</button>
-        <button class="tab" onclick="setHistFiltro('hoy',this)">Hoy</button>
-        <button class="tab" onclick="setHistFiltro('semana',this)">Semana</button>
-        <button class="tab" onclick="setHistFiltro('mes',this)">Mes</button>
-      </div>
-      <div id="hist-list"></div>
-    </div>
 
-    <!-- MAPA -->
-    <div id="sec-mapa" class="section">
-      <div class="page-title">Mapa de clientes</div>
-      <div class="page-sub">Todos tus clientes con dirección guardada</div>
-      <div id="mapa-stats" style="margin-bottom:12px"></div>
-      <div id="mapa-osm" style="width:100%;height:340px;border-radius:16px;overflow:hidden;border:1px solid var(--border2);margin-bottom:14px"></div>
-      <div id="mapa-clientes-pins"></div>
-    </div>
 
-    <!-- MAS -->
     <div id="sec-mas" class="section">
       <div class="page-title">Más</div>
       <div class="page-sub">Reportes, backup y cuenta</div>
@@ -3634,13 +3287,14 @@ function startApp(){
       <span class="nav-icon"><i class="ti ti-users"></i></span>
       <span class="nav-label">Clientes</span>
     </button>
-    <button class="nav-btn" onclick="goTo('historial',this)" id="nav-historial">
-      <span class="nav-icon"><i class="ti ti-history"></i></span>
-      <span class="nav-label">Historial</span>
-    </button>
+
     <button class="nav-btn" onclick="goTo('caja',this)" id="nav-caja">
       <span class="nav-icon"><i class="ti ti-report-money"></i></span>
       <span class="nav-label">Caja</span>
+    </button>
+    <button class="nav-btn" onclick="goTo('envios',this)" id="nav-envios">
+      <span class="nav-icon"><i class="ti ti-truck-delivery"></i></span>
+      <span class="nav-label">Envíos</span>
     </button>
     <button class="nav-btn" onclick="goTo('mas',this)" id="nav-mas">
       <span class="nav-icon"><i class="ti ti-dots"></i></span>
@@ -3718,6 +3372,7 @@ function startApp(){
       <label>Dirección principal</label>
       <div style="display:flex;gap:8px">
         <input id="cli-dir" placeholder="Ej: Av. Rivadavia 1234, Buenos Aires" style="flex:1">
+        <div id="geo-status" style="font-size:11px;color:var(--text3);margin-top:3px;min-height:14px"></div>
         <button type="button" class="btn btn-secondary btn-sm" onclick="verDireccionEnMaps()" style="flex-shrink:0"><i class="ti ti-map-pin"></i> Ver</button>
       </div>
     </div>
