@@ -2709,7 +2709,8 @@ async function cerrarCaja(){
   if(!confirm('¿Cerrás la caja?')) return;
   if(state.caja){
     const apertura=new Date(state.caja.horaApertura);
-    const ventasCaja=state.ventas.filter(v=>v.fecha>=aperturaISO2||v.fecha>=aperturaISO3);
+    const aperturaISO=state.caja.horaApertura;
+    const ventasCaja=state.ventas.filter(v=>v.fecha>=aperturaISO);
     const totalVendido=ventasCaja.reduce((s,v)=>s+v.total,0);
     const ingresos=(state.caja.movimientos||[]).filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
     const egresos=(state.caja.movimientos||[]).filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
