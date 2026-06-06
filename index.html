@@ -516,14 +516,14 @@
     </div>
     <!-- Actions -->
     <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-      <div id="caja-status" style="font-size:9.5px;font-weight:700;color:var(--text3);background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-pill);padding:4px 10px;white-space:nowrap;letter-spacing:.03em">Caja cerrada</div>
+      <div id="caja-status" style="font-size:10px;font-weight:700;color:var(--text2);background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius-pill);padding:5px 11px;white-space:nowrap;letter-spacing:.02em">Caja cerrada</div>
       <button onclick="openNotifStock()" id="btn-notif" class="header-btn" style="position:relative" title="Alertas de stock">
         <i class="ti ti-bell" style="font-size:16px"></i>
         <span id="notif-badge" style="display:none;position:absolute;top:-3px;right:-3px;background:var(--red);color:#fff;font-size:8px;font-weight:800;min-width:15px;height:15px;border-radius:50%;align-items:center;justify-content:center;border:1.5px solid var(--bg)">0</span>
       </button>
-      <div style="display:flex;align-items:center;gap:5px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-pill);padding:4px 10px">
-        <div id="header-usuario" style="font-size:10.5px;color:var(--rose);font-weight:700"></div>
-        <button onclick="cerrarSesion()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0;line-height:1;display:flex;align-items:center" title="Cerrar sesión"><i class="ti ti-logout" style="font-size:14px"></i></button>
+      <div style="display:flex;align-items:center;gap:6px;background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius-pill);padding:5px 12px">
+        <div id="header-usuario" style="font-size:11px;color:var(--text);font-weight:700"></div>
+        <button onclick="cerrarSesion()" style="background:none;border:none;color:var(--text2);cursor:pointer;padding:0;line-height:1;display:flex;align-items:center" title="Cerrar sesión"><i class="ti ti-logout" style="font-size:15px"></i></button>
       </div>
     </div>
   </div>
@@ -2044,20 +2044,30 @@ let _histFiltro='todo';
 function cajasHistHTML(){
   const cajasCerradas=state.cajasHist||[];
   if(!cajasCerradas.length) return '';
-  return`<div style="margin-top:16px">
-    <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:8px">CAJAS ANTERIORES</div>
-    ${cajasCerradas.slice().reverse().map(c=>{
-      const fd=fmtFecha(c.horaApertura||c.fechaISO||c.fecha);
-      return`<div style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:6px">
-        <div style="display:flex;justify-content:space-between;align-items:center;cursor:pointer" onclick="verCaja('${c._id}')">
+  return`<div style="margin-top:18px">
+    <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.07em;text-transform:uppercase;margin-bottom:10px">Cajas anteriores</div>
+    ${cajasCerradas.slice().reverse().map(cj=>{
+      const fd=fmtFecha(cj.horaApertura||cj.fechaISO||cj.fecha);
+      const detId='cajahist-'+cj._id;
+      return`<div style="background:var(--bg3);border:1px solid var(--border2);border-left:3px solid var(--text3);border-radius:0 12px 12px 0;margin-bottom:8px;overflow:hidden">
+        <!-- Fila principal tappable -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:13px 14px;cursor:pointer" onclick="document.getElementById('${detId}').style.display=document.getElementById('${detId}').style.display==='none'?'block':'none'">
           <div>
-            <div style="font-size:13px;font-weight:700">${fd}</div>
-            <div style="font-size:12px;color:var(--text2)">Apertura: ${fmt(c.inicio)} · ${c.ventasCount||0} ventas</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text)">${fd}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">Apertura: ${fmt(cj.inicio)} · ${cj.ventasCount||0} ventas</div>
           </div>
-          <div style="font-weight:800;color:var(--rose2)">${fmt(c.totalVendido||0)}</div>
+          <div style="text-align:right">
+            <div style="font-size:15px;font-weight:800;color:var(--text)">${fmt(cj.totalVendido||0)}</div>
+            <div style="font-size:10px;color:var(--text3)">▾ ver detalle</div>
+          </div>
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
-          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();borrarCaja('${c._id}')">🗑 Borrar</button>
+        <!-- Panel expandible — borrar SOLO acá adentro -->
+        <div id="${detId}" style="display:none;border-top:1px solid var(--border);padding:10px 14px;background:var(--bg4)">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-secondary btn-sm" style="flex:1" onclick="verCaja('${cj._id}')"><i class="ti ti-eye"></i> Ver detalle</button>
+            <button class="btn btn-secondary btn-sm" style="flex:1" onclick="imprimirReporteCaja('${cj._id}')"><i class="ti ti-printer"></i> Imprimir</button>
+            <button class="btn btn-danger btn-sm" style="flex:1" onclick="if(confirm('¿Borrar esta caja y todas sus ventas?'))borrarCaja('${cj._id}')"><i class="ti ti-trash"></i> Borrar</button>
+          </div>
         </div>
       </div>`;}).join('')}
   </div>`;
@@ -3374,50 +3384,73 @@ async function borrarPresupuesto(id){
 }
 // ══ STOCK ALERT BANNER ══════════════════════════════
 function renderStockAlertBanner(){
-  // Update notification badge in header
-  const bajos=state.articulos.filter(a=>a.nombre!=='Envío'&&(a.stock||0)<=(a.stockMin||3));
-  const badge=document.getElementById('notif-badge');
+  const bajos  = state.articulos.filter(a=>a.nombre!=='Envío'&&(a.stock||0)<=(a.stockMin||3));
+  const leidas = _getNotifLeidas();
+  const nuevas = bajos.filter(a=>!leidas.includes(String(a._id)+'-'+a.stock));
+  const badge  = document.getElementById('notif-badge');
   if(badge){
-    if(bajos.length>0){
-      badge.textContent=bajos.length;
+    if(nuevas.length>0){
+      badge.textContent=nuevas.length;
       badge.style.display='flex';
     } else {
       badge.style.display='none';
     }
   }
-  // Clear old banner (no longer used inline)
   const el=document.getElementById('stock-alerta-banner');
   if(el) el.innerHTML='';
 }
+function _getNotifLeidas(){
+  try{ return JSON.parse(localStorage.getItem('mtb_notif_leidas')||'[]'); }
+  catch(e){ return []; }
+}
+function marcarNotifLeidas(){
+  const bajos = state.articulos.filter(a=>a.nombre!=='Envío'&&(a.stock||0)<=(a.stockMin||3));
+  const ids   = bajos.map(a=>String(a._id)+'-'+a.stock);
+  localStorage.setItem('mtb_notif_leidas', JSON.stringify(ids));
+  // update badge
+  const badge = document.getElementById('notif-badge');
+  if(badge){ badge.style.display='none'; badge.textContent='0'; }
+  closeModal('modal-notif');
+  toast('Notificaciones marcadas como leídas ✓');
+}
 function openNotifStock(){
-  const bajos=state.articulos.filter(a=>a.nombre!=='Envío'&&(a.stock||0)<=(a.stockMin||3));
-  const agotados=bajos.filter(a=>(a.stock||0)===0);
-  const pocos=bajos.filter(a=>(a.stock||0)>0);
+  const bajos   = state.articulos.filter(a=>a.nombre!=='Envío'&&(a.stock||0)<=(a.stockMin||3));
+  const leidas  = _getNotifLeidas();
+  const nuevas  = bajos.filter(a=>!leidas.includes(String(a._id)+'-'+a.stock));
+  const agotados= nuevas.filter(a=>(a.stock||0)===0);
+  const pocos   = nuevas.filter(a=>(a.stock||0)>0);
   let html='<div class="modal-handle"></div>';
   html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">';
   html+='<div class="modal-title" style="margin-bottom:0">🔔 Alertas de stock</div>';
-  html+='<button class="btn btn-secondary btn-icon btn-sm" data-mid="modal-notif" onclick="closeModal(this.dataset.mid)"><i class="ti ti-x"></i></button></div>';
-  if(!bajos.length){
-    html+='<div style="text-align:center;padding:30px;color:var(--text3)">✅ Todo el stock está bien</div>';
+  html+='<button class="btn btn-secondary btn-icon btn-sm" data-m="modal-notif" onclick="closeModal(this.dataset.m)"><i class="ti ti-x"></i></button></div>';
+  if(!nuevas.length){
+    html+='<div style="text-align:center;padding:30px 16px">';
+    html+='<div style="font-size:32px;margin-bottom:10px">✅</div>';
+    html+='<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px">Todo en orden</div>';
+    html+='<div style="font-size:13px;color:var(--text3)">No hay alertas de stock nuevas</div>';
+    html+='</div>';
   } else {
     if(agotados.length){
-      html+='<div style="font-size:11px;font-weight:700;color:var(--red);letter-spacing:.05em;margin-bottom:8px">AGOTADOS</div>';
+      html+='<div style="font-size:10px;font-weight:700;color:var(--red);letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px">Agotados</div>';
       agotados.forEach(a=>{
         html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.15);border-radius:10px;margin-bottom:6px">';
-        html+='<div><div style="font-size:13px;font-weight:600">'+a.nombre+'</div><div style="font-size:11px;color:var(--text2)">'+( a.categoria||'')+'</div></div>';
+        html+='<div><div style="font-size:13px;font-weight:600;color:var(--text)">'+a.nombre+'</div>';
+        html+='<div style="font-size:11px;color:var(--text3)">'+(a.categoria||'Sin categoría')+'</div></div>';
         html+='<span style="background:rgba(220,38,38,.1);color:var(--red);font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px">Sin stock</span>';
         html+='</div>';
       });
     }
     if(pocos.length){
-      html+='<div style="font-size:11px;font-weight:700;color:var(--amber);letter-spacing:.05em;margin:'+(agotados.length?'12px':'0')+'px 0 8px">STOCK BAJO</div>';
+      html+='<div style="font-size:10px;font-weight:700;color:var(--amber);letter-spacing:.07em;text-transform:uppercase;margin:'+(agotados.length?'12px':'0')+'px 0 8px">Stock bajo</div>';
       pocos.forEach(a=>{
         html+='<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.15);border-radius:10px;margin-bottom:6px">';
-        html+='<div><div style="font-size:13px;font-weight:600">'+a.nombre+'</div><div style="font-size:11px;color:var(--text2)">Mín. '+(a.stockMin||3)+' uds</div></div>';
+        html+='<div><div style="font-size:13px;font-weight:600;color:var(--text)">'+a.nombre+'</div>';
+        html+='<div style="font-size:11px;color:var(--text3)">Mínimo: '+(a.stockMin||3)+' uds</div></div>';
         html+='<span style="background:rgba(217,119,6,.1);color:var(--amber);font-size:12px;font-weight:700;padding:3px 9px;border-radius:20px">'+a.stock+' restantes</span>';
         html+='</div>';
       });
     }
+    html+='<button class="btn btn-primary btn-full" style="margin-top:14px" onclick="marcarNotifLeidas()"><i class="ti ti-checks"></i> Marcar como leídas</button>';
   }
   document.getElementById('notif-content').innerHTML=html;
   openModal('modal-notif');
@@ -3825,11 +3858,11 @@ function iniciarSesion(nombre){
   document.getElementById('registro-screen').style.display='none';
   document.getElementById('app').style.display='flex';
   const u=window._currentUser;
-  document.getElementById('header-usuario').textContent='Hola, '+(u?u.nombre:nombre)+' 💅';
+  document.getElementById('header-usuario').textContent=u?u.nombre:nombre;
   // Show admin badge
   if(u&&u.rol==='admin'){
     const el=document.getElementById('header-usuario');
-    if(el) el.textContent='👑 '+u.nombre;
+    if(el) el.textContent=u.nombre;
   }
   goTo('venta', document.getElementById('nav-venta'));
   init().catch(e=>{console.error(e);toast('Error al conectar. Revisá tu conexión.');});
