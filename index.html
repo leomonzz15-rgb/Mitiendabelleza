@@ -652,6 +652,20 @@
         <button class="tab" onclick="setEnvioFiltro('entregado',this)">Entregados</button>
       </div>
       <div id="agenda-list"></div>
+
+      <div class="card" style="margin-top:16px;padding:0;overflow:hidden">
+        <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span class="card-title">📍 Mapa de clientes</span>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button id="mapa-toggle-estilo" class="btn btn-secondary btn-sm" onclick="toggleMapaEstilo()">
+              <i class="ti ti-sun" style="font-size:13px"></i> Claro
+            </button>
+            <button class="btn btn-secondary btn-sm" onclick="initMapaClientes()"><i class="ti ti-refresh" style="font-size:13px"></i></button>
+          </div>
+        </div>
+        <div id="mapa-leaflet" style="height:320px;width:100%;z-index:1"></div>
+        <div id="mapa-clientes-list" style="padding:10px 14px 14px;max-height:200px;overflow-y:auto"></div>
+      </div>
     </div>
 
     <!-- HISTORIAL -->
@@ -660,10 +674,7 @@
     <div id="sec-mas" class="section">
       <div class="page-title">Más</div>
       <div class="page-sub">Reportes, backup y cuenta</div>
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="goTo('envios',document.getElementById('nav-mas'))"><i class="ti ti-truck-delivery"></i> Envíos</button>
-        <button class="btn btn-secondary btn-sm" style="flex:1" onclick="verDireccionesClientes()"><i class="ti ti-map-pin"></i> Clientes con dirección</button>
-      </div>
+
       <div class="card" style="margin-top:12px">
         <div class="card-header">
           <span class="card-title">📊 Reportes</span>
@@ -686,6 +697,8 @@
       </div>
 
       
+
+
       <div class="card" style="margin-top:12px">
         <div class="card-header"><span class="card-title">💾 Backup y exportar</span></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
@@ -695,22 +708,7 @@
         <button class="btn btn-primary btn-full btn-sm" onclick="backupCompleto()"><i class="ti ti-database-export"></i> Backup completo (Excel)</button>
         <div style="font-size:11px;color:var(--text2);margin-top:6px;text-align:center">Descarga un Excel con artículos, clientes y ventas</div>
       </div>
-      <div class="card" style="margin-top:12px;padding:0;overflow:hidden">
-        <div style="padding:14px 16px 10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-          <span class="card-title">📍 Mapa de clientes</span>
-          <div style="display:flex;gap:6px;align-items:center">
-            <button id="mapa-toggle-estilo" class="btn btn-secondary btn-sm" onclick="toggleMapaEstilo()" title="Cambiar estilo del mapa">
-              <i class="ti ti-sun" style="font-size:13px"></i> Claro
-            </button>
-            <button class="btn btn-secondary btn-sm" onclick="initMapaClientes()"><i class="ti ti-refresh" style="font-size:13px"></i></button>
-          </div>
-        </div>
-        <!-- Mapa Leaflet -->
-        <div id="mapa-leaflet" style="height:340px;width:100%;border-radius:0 0 var(--radius) var(--radius);z-index:1"></div>
-        <!-- Lista debajo del mapa -->
-        <div id="mapa-clientes-list" style="padding:10px 14px 14px;max-height:220px;overflow-y:auto"></div>
-      </div>
-      <div class="card" style="margin-top:12px;border-color:#3a1010">
+            <div class="card" style="margin-top:12px;border-color:#3a1010">
         <div class="card-title" style="margin-bottom:8px;color:var(--text2)">🔑 Cuenta</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Si olvidaste tu contraseña, podés resetear el acceso. <strong style="color:var(--text)">Tus datos no se borran.</strong></div>
         <button class="btn btn-danger btn-full btn-sm" onclick="resetearCuenta()">Resetear usuario y contraseña</button>
@@ -1097,8 +1095,8 @@ function goTo(sec,btn){
   if(secEl) secEl.classList.add('active');
   (btn||document.getElementById('nav-'+sec))?.classList.add('active');
   if(sec==='caja') renderCajaDiaria();
-  if(sec==='envios') renderAgenda();
-  if(sec==='mas'){renderReportes();renderAdminPanel();setTimeout(()=>initMapaClientes(),200);}
+  if(sec==='envios'){renderAgenda();setTimeout(()=>initMapaClientes(),250);}
+  if(sec==='mas'){renderReportes();renderAdminPanel();}
 }
 
 
@@ -2141,7 +2139,7 @@ function renderCajaDiaria(){
     let html = '';
     // Stats row
     html += '<div class="grid2" style="margin-bottom:12px">';
-    html += '<div class="stat-card"><div class="stat-val">'+fmt(totalVentas)+'</div><div class="stat-label">Vendido</div></div>';
+    html += '<div class="stat-card"><div class="stat-val" style="font-size:'+(fmt(totalVentas).length>8?'16px':fmt(totalVentas).length>6?'19px':'22px')+'">'+fmt(totalVentas)+'</div><div class="stat-label">Vendido</div></div>';
     html += '<div class="stat-card"><div class="stat-val">'+ventasCaja.length+'</div><div class="stat-label">Ventas</div></div>';
     html += '</div>';
 
@@ -2173,7 +2171,19 @@ function renderCajaDiaria(){
         html += '<div id="'+vid+'" style="display:none;padding:8px 12px 10px;background:var(--bg3);border-top:1px solid var(--border)">';
         html += '<div style="margin-bottom:6px">'+itemsHtml+'</div>';
         html += notaHtml;
-        html += '<button class="btn btn-danger btn-sm" data-ventaid="'+m.ventaId+'" onclick="borrarVentaDesdeCaja(this.dataset.ventaid)"><i class="ti ti-trash"></i> Borrar y devolver stock</button>';
+        html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+        html += '<button class="btn btn-secondary btn-sm" onclick="mostrarTicketById(\''+m.ventaId+'\',0)"><i class="ti ti-printer"></i> Ver/Imprimir</button>';
+        if(ventaObj && ventaObj.clienteId){
+          const cliT = state.clientes.find(cl=>String(cl._id)===String(ventaObj.clienteId));
+          if(cliT && cliT.telefono){
+            const tel = cliT.telefono.replace(/\D/g,'');
+            const items = (ventaObj.items||[]).map(i=>i.qty+'x '+i.nombre+' '+fmt(i.precio*i.qty)).join('%0A');
+            const msg = encodeURIComponent('Hola '+cliT.nombre+'! Tu compra en Mi Tienda Belleza:\n'+(ventaObj.items||[]).map(i=>i.qty+'x '+i.nombre+' '+fmt(i.precio*i.qty)).join('\n')+'\nTotal: '+fmt(ventaObj.total));
+            html += '<a href="https://wa.me/'+tel+'?text='+msg+'" target="_blank" class="btn btn-secondary btn-sm"><i class="ti ti-brand-whatsapp" style="color:#25d366"></i> WhatsApp</a>';
+          }
+        }
+        html += '<button class="btn btn-danger btn-sm" data-ventaid="'+m.ventaId+'" onclick="borrarVentaDesdeCaja(this.dataset.ventaid)"><i class="ti ti-trash"></i> Borrar stock</button>';
+        html += '</div>';
         html += '</div></div>';
       } else {
         const isMovimiento = m.tipo==='ingreso'||m.tipo==='egreso';
@@ -2881,7 +2891,7 @@ function renderReportes(){
   // stock bajo
   document.getElementById('reporte-content').innerHTML=`
     <div class="grid2" style="margin-bottom:12px">
-      <div class="stat-card"><div class="stat-val">${fmt(total)}</div><div class="stat-label">Total vendido</div></div>
+      <div class="stat-card"><div class="stat-val" style="font-size:${fmt(total).length>8?'16px':fmt(total).length>6?'19px':'22px'}">${fmt(total)}</div><div class="stat-label">Total vendido</div></div>
       <div class="stat-card"><div class="stat-val">${ventasFiltradas.length}</div><div class="stat-label">Ventas</div></div>
     </div>
     <div style="font-size:13px;margin-bottom:12px">
